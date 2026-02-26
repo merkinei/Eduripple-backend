@@ -37,16 +37,16 @@ RUN mkdir -p /app/logs /app/resources /app/backups /data \
     && chmod -R 777 /data \
     && chmod -R 755 /app
 
-# DATA_DIR: persistent volume mount point on Railway (defaults to /data)
-ENV DATA_DIR=/data
+# DATA_DIR: where SQLite databases live. Defaults to /app (container filesystem).
+# Override with a mounted volume for persistence.
+ENV DATA_DIR=/app
 ENV PORT=5000
 
 # Expose port (Railway overrides this)
 EXPOSE ${PORT}
 
-# Copy seed curriculum.db into /app so init_data.py can seed the volume.
-# Override DATA_DIR temporarily so the seed DB is created in /app, not /data.
-RUN DATA_DIR=/app python -c "from curriculum_db import init_curriculum_db; init_curriculum_db()" || true
+# Initialize curriculum.db and copy as seed (DATA_DIR=/app at build time)
+RUN python -c "from curriculum_db import init_curriculum_db; init_curriculum_db()" || true
 RUN cp /app/curriculum.db /app/seed_curriculum.db 2>/dev/null || true
 
 # Use shell form so $PORT is expanded at runtime.
