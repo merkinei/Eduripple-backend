@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Home{% endblock %}
+{% block content %}
+<section class="hero hero-home">
+    <div class="container hero-grid">
+        <div>
+            <span class="hero-kicker">🇰🇪 Built for CBC teachers in Kenya</span>
+            <h1>Transform How You Teach</h1>
+            <p class="hero-subtitle">AI-powered lesson plans, assessments, and schemes of work that align perfectly with the CBC curriculum. Save hours every week and teach with confidence.</p>
+            <div class="cta-row" style="gap: 1rem; flex-wrap: wrap;">
+                <a class="btn btn-primary" href="{{ url_for('ai_chat') }}" style="flex: 1; min-width: 200px;" data-ripple-sound>
+                    <span style="font-size: 1.1em;">⚡</span> Try EduRipple AI
+                </a>
+                <a class="btn btn-secondary" href="{{ url_for('how_it_works') }}" style="flex: 1; min-width: 200px;">How It Works</a>
+            </div>
+            <div class="hero-stats" id="heroStats" style="margin-top: 2.5rem;">
+                <article class="stat-card animated-stat">
+                    <h3 class="counter" data-target="1200">0</h3>
+                    <p>Lesson Plans Generated</p>
+                </article>
+                <article class="stat-card animated-stat">
+                    <h3 class="counter" data-target="430">0</h3>
+                    <p>Schools Using EduRipple</p>
+                </article>
+                <article class="stat-card animated-stat">
+                    <h3 class="counter" data-target="95"><span class="counter">0</span>%</h3>
+                    <p>Time Saved Per Week</p>
+                </article>
+            </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true" style="position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 20px;">
+            <img src="{{ url_for('static', filename='images/kenyan-classroom.jpg') }}" alt="CBC-Aligned classroom resources" style="width: 100%; height: 100%; object-fit: cover; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);" />
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <h2 style="text-align: center; margin-bottom: 1.5rem;">What You Can Create</h2>
+        <div class="grid cards-3">
+            <article class="card" style="border-left: 4px solid var(--color-accent); transition: transform 0.3s ease;">
+                <h3 style="margin-top: 0; color: var(--color-accent); display: flex; align-items: center; gap: 0.5rem;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg> Lesson Plans</h3>
+                <p>Complete 40-minute lesson outlines with learning outcomes, activities, and assessments—tailored to your topic and grade level.</p>
+                <ul style="font-size: 0.9rem; margin: 1rem 0; padding-left: 1.5rem;">
+                    <li>Strand and sub-strand alignment</li>
+                    <li>Specific learning outcomes</li>
+                    <li>Complete lesson flow with timings</li>
+                </ul>
+            </article>
+            <article class="card" style="border-left: 4px solid #4CAF50; transition: transform 0.3s ease;">
+                <h3 style="margin-top: 0; color: #4CAF50; display: flex; align-items: center; gap: 0.5rem;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg> Schemes of Work</h3>
+                <p>Termly and annual schemes aligned with KICD guidelines. Organize topics, timings, and assessments in one view.</p>
+                <ul style="font-size: 0.9rem; margin: 1rem 0; padding-left: 1.5rem;">
+                    <li>Term-by-term breakdown</li>
+                    <li>Week-by-week topics</li>
+                    <li>Competency tracking</li>
+                </ul>
+            </article>
+            <article class="card" style="border-left: 4px solid #2196F3; transition: transform 0.3s ease;">
+                <h3 style="margin-top: 0; color: #2196F3; display: flex; align-items: center; gap: 0.5rem;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg> Assessments</h3>
+                <p>Rubrics, test papers, and assessment tools with clear marking criteria. Make grading faster and more consistent.</p>
+                <ul style="font-size: 0.9rem; margin: 1rem 0; padding-left: 1.5rem;">
+                    <li>Formative & summative tools</li>
+                    <li>Rubrics with descriptors</li>
+                    <li>Question banks by topic</li>
+                </ul>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="section muted">
+    <div class="container">
+        <h2 style="text-align: center; margin-bottom: 2rem;">Why Teachers Choose EduRipple</h2>
+        <div class="grid cards-2" style="gap: 2rem;">
+            <div style="padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </div>
+                <h3>Save 5+ Hours Per Week</h3>
+                <p>Stop spending weekends planning. Generate structured lesson plans in minutes, not hours. More prep time, more teaching time.</p>
+            </div>
+            <div style="padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                </div>
+                <h3>Always CBC-Aligned</h3>
+                <p>Never worry about curriculum misalignment. Every resource is built on the latest Kenya CBC standards. Stay compliant, stay confident.</p>
+            </div>
+            <div style="padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                </div>
+                <h3>Reusable & Editable</h3>
+                <p>Download, customize, and save. Build a personal resource bank you can reuse year after year and subject after subject.</p>
+            </div>
+            <div style="padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </div>
+                <h3>No Tech Skills Needed</h3>
+                <p>Simple prompts in plain language. EduRipple understands how you teach and generates resources that just work in your classroom.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <h2 style="text-align: center; margin-bottom: 2rem;">How It Works (In 3 Steps)</h2>
+        <div class="grid cards-3" style="text-align: center;">
+            <div style="background: var(--bg-secondary); padding: 2rem; border-radius: 12px; border: 2px solid var(--border-color);">
+                <div style="font-size: 3rem; margin-bottom: 1rem; background: var(--color-accent); color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: auto; margin-right: auto;">1</div>
+                <h3>Describe What You Need</h3>
+                <p>Tell EduRipple your topic, grade level, and what you want to create. Use simple language—no technical jargon needed.</p>
+            </div>
+            <div style="background: var(--bg-secondary); padding: 2rem; border-radius: 12px; border: 2px solid var(--border-color);">
+                <div style="font-size: 3rem; margin-bottom: 1rem; background: #4CAF50; color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: auto; margin-right: auto;">2</div>
+                <h3>AI Creates Your Resource</h3>
+                <p>EduRipple generates a CBC-aligned resource in seconds. Lesson plans, schemes, or assessments—ready to download.</p>
+            </div>
+            <div style="background: var(--bg-secondary); padding: 2rem; border-radius: 12px; border: 2px solid var(--border-color);">
+                <div style="font-size: 3rem; margin-bottom: 1rem; background: #2196F3; color: white; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: auto; margin-right: auto;">3</div>
+                <h3>Customize & Use</h3>
+                <p>Download the document. Make tweaks if needed. Use it right away in your classroom or save it for later.</p>
+            </div>
+        </div>
+        <div style="text-align: center; margin-top: 2rem;">
+            <a class="btn btn-primary" href="{{ url_for('ai_chat') }}" style="font-size: 1.1rem; padding: 0.75rem 2rem;">Get Started Now →</a>
+        </div>
+    </div>
+</section>
+
+<section class="section muted">
+    <div class="container">
+        <h2 style="text-align: center; margin-bottom: 2rem;">Teachers Are Saying</h2>
+        <div class="grid cards-2" style="gap: 1.5rem;">
+            <article style="background: var(--bg-base); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);">
+                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+                    <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--color-accent); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: bold;">JM</div>
+                    <div>
+                        <h4 style="margin: 0; font-size: 1rem;">Jane Mwangi</h4>
+                        <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">Biology Teacher, Nairobi</p>
+                    </div>
+                </div>
+                <p style="margin: 0; line-height: 1.6; font-style: italic;">"I used to spend all weekend planning. Now I have those evenings back. EduRipple is a game-changer for Kenyan teachers."</p>
+                <div style="margin-top: 1rem; color: var(--color-accent);">★★★★★</div>
+            </article>
+            <article style="background: var(--bg-base); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);">
+                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+                    <div style="width: 50px; height: 50px; border-radius: 50%; background: #4CAF50; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: bold;">DK</div>
+                    <div>
+                        <h4 style="margin: 0; font-size: 1rem;">David Kipchoge</h4>
+                        <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">Mathematics Teacher, Kisumu</p>
+                    </div>
+                </div>
+                <p style="margin: 0; line-height: 1.6; font-style: italic;">"The scheme generator is incredible. CBC alignment takes minutes, not days. My school board is impressed!"</p>
+                <div style="margin-top: 1rem; color: #4CAF50;">★★★★★</div>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container" style="text-align: center;">
+        <h2>Ready to Transform Your Teaching?</h2>
+        <p style="font-size: 1.1rem; margin: 1rem 0 2rem; color: var(--text-secondary);">Join hundreds of Kenyan teachers using EduRipple to save time and teach better.</p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <a class="btn btn-primary" href="{{ url_for('ai_chat') }}" style="font-size: 1.1rem; padding: 0.75rem 2rem;" data-ripple-sound>Try EduRipple (Free)</a>
+            <a class="btn btn-secondary" href="{{ url_for('how_it_works') }}" style="font-size: 1.1rem; padding: 0.75rem 2rem;">Learn More</a>
+        </div>
+    </div>
+</section>
+
+<script>
+// Animated counter function
+function animateCounters() {
+    const counters = document.querySelectorAll('.counter');
+    const speed = 2000; // 2 seconds total
+    const frameRate = 16; // ~60fps
+    const frames = speed / frameRate;
+    
+    counters.forEach(counter => {
+        const target = parseInt(counter.getAttribute('data-target'));
+        const current = parseInt(counter.textContent);
+        const increment = (target - current) / frames;
+        let frame = 0;
+        
+        const interval = setInterval(() => {
+            frame++;
+            const value = current + Math.round(increment * frame);
+            counter.textContent = value;
+            
+            if (frame >= frames) {
+                counter.textContent = target;
+                clearInterval(interval);
+            }
+        }, frameRate);
+    });
+}
+
+// Trigger animation when page loads or when stats section comes into view
+document.addEventListener('DOMContentLoaded', () => {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                animateCounters();
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.5 });
+    
+    const statsSection = document.getElementById('heroStats');
+    if (statsSection) {
+        observer.observe(statsSection);
+    }
+});
+</script>
+{% endblock %}

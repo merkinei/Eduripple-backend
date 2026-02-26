@@ -1,0 +1,31 @@
+# render.yaml — Render Blueprint for EduRipple Backend
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: eduripple-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/system/health
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: DATA_DIR
+        value: /data
+      - key: GEMINI_API_KEY
+        sync: false          # Render will prompt you to enter this during deploy
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+    disk:
+      name: eduripple-data
+      mountPath: /data
+      sizeGB: 1

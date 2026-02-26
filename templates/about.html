@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | About{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div class="how-hero-grid">
+            <div>
+                <h1>About EduRipple</h1>
+                <p style="font-size: 1.1rem; margin-bottom: 1rem;">EduRipple empowers Kenyan teachers with AI-driven tools to simplify CBC curriculum planning and create impactful learning resources.</p>
+                <div class="how-highlights">
+                    <span class="highlight-chip">✓ Teacher-first design</span>
+                    <span class="highlight-chip">✓ CBC aligned</span>
+                    <span class="highlight-chip">✓ Built for real classrooms</span>
+                </div>
+            </div>
+            <div class="how-visual" style="max-height: 350px; display: flex; align-items: center; justify-content: center;">
+                <img src="{{ url_for('static', filename='images/teacher-laptop.png') }}" alt="Teacher preparing learning materials" data-fallback="{{ url_for('static', filename='images/kenyan-classroom.jpg') }}" onerror="this.onerror=null;this.src=this.dataset.fallback;" style="max-height: 100%; max-width: 100%; object-fit: contain;" />
+            </div>
+        </div>
+
+        <div style="margin: 2.5rem 0; padding: 1.5rem; background: var(--surface-muted); border-radius: 0.9rem;">
+            <h2 style="margin-top: 0;">Our Mission</h2>
+            <p>To revolutionize education in Kenya by providing teachers with intelligent, accessible tools that reduce planning burden and increase instructional quality. We believe every Kenyan student deserves teachers who have time to teach, not just plan.</p>
+        </div>
+
+        <div class="grid cards-3" style="margin: 2rem 0;">
+            <article class="card">
+                <div style="width: 40px; height: 40px; margin-bottom: 0.5rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                        <path d="M8 7h8"></path>
+                        <path d="M8 11h8"></path>
+                    </svg>
+                </div>
+                <h3>Education-First Approach</h3>
+                <p>Every feature is designed to reduce teacher workload and improve classroom preparation quality. We listen to educators and build solutions that matter.</p>
+            </article>
+            <article class="card">
+                <div style="width: 40px; height: 40px; margin-bottom: 0.5rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="6"></circle>
+                        <circle cx="12" cy="12" r="2"></circle>
+                    </svg>
+                </div>
+                <h3>KICD CBC Aligned</h3>
+                <p>Generated outputs are organized around strands, learning outcomes, core competencies, and values. Fully compliant with Kenya's CBC curriculum framework.</p>
+            </article>
+            <article class="card">
+                <div style="width: 40px; height: 40px; margin-bottom: 0.5rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </div>
+                <h3>Built by Teachers</h3>
+                <p>EduRipple is shaped by real school needs—simple, practical, and supportive for daily teaching. Our team understands classroom realities.</p>
+            </article>
+        </div>
+
+        <div style="margin: 2.5rem 0; padding: 2rem; background: var(--surface-muted); border-radius: 0.9rem;">
+            <h2 style="margin-top: 0;">Why EduRipple?</h2>
+            <div class="grid cards-2" style="gap: 1.5rem; margin-top: 1rem;">
+                <div>
+                    <h4 style="color: var(--primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        Saves Time
+                    </h4>
+                    <p>Generate lesson plans, schemes of work, and assessments in minutes instead of hours. More time for actual teaching.</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                        Quality Content
+                    </h4>
+                    <p>AI-powered suggestions grounded in CBC curriculum ensure educationally sound and contextually relevant materials.</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                        Easy to Use
+                    </h4>
+                    <p>Intuitive interface requires no technical expertise. Teachers can focus on education, not learning complicated software.</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"></circle><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 6.9 8 11.7z"></path></svg>
+                        Designed for Kenya
+                    </h4>
+                    <p>Developed specifically for Kenyan educators and learners, reflecting local context, values, and curriculum standards.</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin: 2.5rem 0; text-align: center; padding: 1.5rem; border: 2px solid var(--border); border-radius: 0.9rem;">
+            <h3>Ready to improve your classroom preparation?</h3>
+            <p style="margin-bottom: 1rem;">Join hundreds of Kenyan teachers using EduRipple to create better lessons.</p>
+            <div class="cta-row" style="justify-content: center;">
+                <a class="btn btn-primary" href="{{ url_for('ai_chat') }}">Try EduRipple AI</a>
+                <a class="btn btn-secondary" href="{{ url_for('how_it_works') }}">See How It Works</a>
+                <a class="btn btn-secondary" href="{{ url_for('contact') }}">Get in Touch</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

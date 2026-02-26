@@ -1,0 +1,16 @@
+[build]
+# Use the Dockerfile for building (includes WeasyPrint system deps)
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# init_data.py seeds the persistent volume on first boot, then gunicorn starts
+startCommand = "python init_data.py && gunicorn -w 4 -b 0.0.0.0:$PORT --timeout 120 --access-logfile - --error-logfile - wsgi:app"
+
+# Health check
+healthcheckPath = "/api/system/health"
+healthcheckTimeout = 30
+
+# Restart policy
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5

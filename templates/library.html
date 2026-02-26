@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Library{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div style="margin-bottom: 3rem;">
+            <h1 style="margin-bottom: 0.5rem;">Your Resource Library</h1>
+            <p style="color: var(--text-secondary); font-size: 1.05rem;">All your generated lesson plans, schemes, assessments, and resources in one place. Download, organize, and reuse anytime.</p>
+        </div>
+
+        <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; border: 1px solid var(--border-color);">
+            <div style="display: grid; grid-template-columns: 1fr auto auto auto; gap: 1rem; align-items: center; margin-bottom: 1.5rem;">
+                <div>
+                    <input type="text" id="librarySearch" placeholder="Search your resources..." style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem; background: var(--bg-base); color: var(--text-primary);">
+                </div>
+                <button id="refreshLibrary" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    Refresh
+                </button>
+                <button id="regenerateCbc" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    Rebuild
+                </button>
+                <a class="btn btn-primary" href="{{ url_for('ai_chat') }}" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    Generate New
+                </a>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;" id="filterButtons">
+                <button class="filter-btn active" data-filter="all" style="padding: 0.5rem 1rem; border-radius: 20px; border: 2px solid var(--color-accent); background: var(--color-accent); color: white; cursor: pointer; font-size: 0.95rem; font-weight: 500; display: flex; align-items: center; gap: 0.4rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    All Resources
+                </button>
+                <button class="filter-btn" data-filter="lesson-plan" style="padding: 0.5rem 1rem; border-radius: 20px; border: 2px solid var(--border-color); background: transparent; color: var(--text-primary); cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                    Lesson Plans
+                </button>
+                <button class="filter-btn" data-filter="scheme" style="padding: 0.5rem 1rem; border-radius: 20px; border: 2px solid var(--border-color); background: transparent; color: var(--text-primary); cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                    Schemes
+                </button>
+                <button class="filter-btn" data-filter="assessment" style="padding: 0.5rem 1rem; border-radius: 20px; border: 2px solid var(--border-color); background: transparent; color: var(--text-primary); cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                    Assessments
+                </button>
+                <button class="filter-btn" data-filter="videos" style="padding: 0.5rem 1rem; border-radius: 20px; border: 2px solid var(--border-color); background: transparent; color: var(--text-primary); cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                    Videos
+                </button>
+                <button class="filter-btn" data-filter="audio" style="padding: 0.5rem 1rem; border-radius: 20px; border: 2px solid var(--border-color); background: transparent; color: var(--text-primary); cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                    Audio
+                </button>
+            </div>
+            <p id="regenerateCbcStatus" style="margin-top: 1rem; font-size: 0.95rem; color: var(--text-secondary);" aria-live="polite"></p>
+        </div>
+
+        <div id="noResourcesMessage" style="text-align: center; padding: 3rem 2rem; background: var(--bg-secondary); border-radius: 12px; border: 2px dashed var(--border-color); display: none;">
+            <div style="width: 60px; height: 60px; margin: 0 auto 1rem; color: var(--color-accent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                    <path d="M8 7h8"></path>
+                    <path d="M8 11h8"></path>
+                </svg>
+            </div>
+            <h3>No Resources Yet</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Your generated resources will appear here. Start by creating your first lesson plan, scheme, or assessment.</p>
+            <a class="btn btn-primary" href="{{ url_for('ai_chat') }}">Generate First Resource</a>
+        </div>
+
+        <div class="library-grid" id="libraryGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+            <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 2rem; color: var(--text-secondary);">
+                <div style="width: 40px; height: 40px; margin: 0 auto 1rem; color: var(--color-accent); animation: spin 1s linear infinite;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="2" x2="12" y2="6"></line>
+                        <line x1="12" y1="18" x2="12" y2="22"></line>
+                        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                        <line x1="2" y1="12" x2="6" y2="12"></line>
+                        <line x1="18" y1="12" x2="22" y2="12"></line>
+                        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                    </svg>
+                </div>
+                Loading resources...
+            </div>
+        </div>
+
+
+    </div>
+</section>
+
+<style>
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    
+    .resource-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .resource-card:hover {
+        border-color: var(--color-accent);
+        box-shadow: 0 8px 24px rgba(255, 107, 157, 0.15);
+        transform: translateY(-4px);
+    }
+    
+    .resource-card-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .resource-icon {
+        font-size: 2.5rem;
+    }
+    
+    .resource-title {
+        margin: 0;
+        font-size: 1.1rem;
+        color: var(--text-primary);
+        word-break: break-word;
+    }
+    
+    .resource-meta {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0;
+        flex-wrap: wrap;
+        font-size: 0.9rem;
+    }
+    
+    .resource-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: var(--text-secondary);
+    }
+    
+    .resource-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: auto;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color);
+    }
+    
+    .resource-actions button, .resource-actions a {
+        flex: 1;
+        padding: 0.6rem;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    
+    .resource-actions .btn-download {
+        background: var(--color-accent);
+        color: white;
+    }
+    
+    .resource-actions .btn-download:hover {
+        background: var(--color-accent-light);
+    }
+    
+    .resource-actions .btn-delete {
+        background: #ffebee;
+        color: #c62828;
+    }
+    
+    .resource-actions .btn-delete:hover {
+        background: #ffcdd2;
+    }
+    
+    @media (max-width: 920px) {
+        .library-grid {
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+        }
+    }
+    
+    @media (max-width: 760px) {
+        .resource-card {
+            padding: 1rem;
+        }
+        
+        .library-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+</style>
+
+<script>
+// Initialize Library Manager with React Components
+let ResourceLibrary;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Create resource library manager
+    ResourceLibrary = new ResourceLibraryManager({
+        gridId: 'libraryGrid',
+        searchId: 'librarySearch',
+        filterPrefix: 'filter-btn'
+    });
+
+    // Handle refresh button
+    const refreshButton = document.getElementById('refreshLibrary');
+    if (refreshButton) {
+        refreshButton.addEventListener('click', () => {
+            refreshButton.textContent = '🔄 Refreshing...';
+            ResourceLibrary.loadResources();
+            setTimeout(() => {
+                refreshButton.textContent = '🔄 Refresh';
+            }, 2000);
+        });
+    }
+
+    // Handle regenerate button
+    const regenerateButton = document.getElementById('regenerateCbc');
+    if (regenerateButton) {
+        regenerateButton.addEventListener('click', () => {
+            const status = document.getElementById('regenerateCbcStatus');
+            status.textContent = '⚙️ Rebuilding CBC data...';
+            
+            fetch('/regenerate-cbc', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    status.textContent = data.message || 'CBC data rebuilt successfully';
+                    setTimeout(() => { status.textContent = ''; }, 3000);
+                })
+                .catch(err => {
+                    status.textContent = 'Error rebuilding CBC data';
+                });
+        });
+    }
+});
+</script>
+{% endblock %}

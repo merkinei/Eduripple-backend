@@ -1,0 +1,706 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | AI Chat Assistant{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h1>AI Chat Assistant</h1>
+        <p>Use a prompt to generate CBC teaching materials quickly.</p>
+
+        <!-- Tab Navigation -->
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+            <button class="tab-btn active" data-tab="chat" style="padding: 0.75rem 1.5rem; border: none; border-radius: 8px 8px 0 0; background: var(--color-accent); color: white; cursor: pointer; font-weight: 600;">
+                💬 AI Chat
+            </button>
+            <button class="tab-btn" data-tab="audio" style="padding: 0.75rem 1.5rem; border: none; border-radius: 8px 8px 0 0; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer;">
+                🎧 Generate Audio
+            </button>
+            <button class="tab-btn" data-tab="flashcards" style="padding: 0.75rem 1.5rem; border: none; border-radius: 8px 8px 0 0; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer;">
+                📇 Flashcards
+            </button>
+            <button class="tab-btn" data-tab="video" style="padding: 0.75rem 1.5rem; border: none; border-radius: 8px 8px 0 0; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer;">
+                🎬 Generate Video
+            </button>
+        </div>
+
+        <!-- Chat Tab -->
+        <div id="chatTab" class="tab-content">
+            <div class="chat-layout">
+                <aside class="card tips">
+                    <h2>Example Prompts</h2>
+                    <ul>
+                        <li>Generate a Grade 7 English lesson plan on Reading Comprehension</li>
+                        <li>Create a scheme of work for Term 1 English Grade 8</li>
+                        <li>Develop an assessment rubric for Grade 9 CRE group discussion</li>
+                    </ul>
+                    <h3>Tips</h3>
+                    <p>Include grade, subject, strand/sub-strand, and lesson focus for best results.</p>
+                </aside>
+
+                <div class="chat-panel">
+                    <div id="chatResponse" class="chat-response" aria-live="polite">
+                        <p class="assistant-msg">Hello teacher 👋. Enter your prompt to begin.</p>
+                    </div>
+                    <div id="downloadLinks" class="card download-links" hidden>
+                        <h3>Download Output</h3>
+                        <div class="cta-row">
+                            <a id="pdfDownload" class="btn btn-primary" href="#" target="_blank" rel="noopener">Download PDF</a>
+                            <a id="wordDownload" class="btn btn-secondary" href="#" target="_blank" rel="noopener">Download Word</a>
+                        </div>
+                        <p class="api-note">Files are saved in Library for future access and re-download.</p>
+                    </div>
+
+                    <form id="chatForm" class="chat-form">
+                        <label for="promptInput" class="sr-only">Prompt</label>
+                        <textarea id="promptInput" rows="5" placeholder="Generate a Grade 7 English lesson plan on Reading Comprehension"></textarea>
+                        <div class="cta-row">
+                            <button type="submit" class="btn btn-primary">Send</button>
+                            <a class="btn btn-secondary" href="{{ url_for('features') }}">Generate Lesson Plan</a>
+                            <a class="btn btn-secondary" href="{{ url_for('library') }}">Open Library</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audio Generation Tab -->
+        <div id="audioTab" class="tab-content" style="display: none;">
+            <div class="card" style="padding: 2rem;">
+                <h2 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🎧</span> Generate Reading Audio
+                </h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Create audio recordings of text at different speeds. Perfect for listening comprehension exercises where students compare slow vs. fast reading.
+                </p>
+                
+                <form id="audioForm">
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Text to Read:</label>
+                        <textarea id="audioText" rows="6" style="width: 100%; padding: 1rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem; background: var(--bg-base); color: var(--text-primary);" 
+                            placeholder="Enter the passage you want converted to audio. For example: 'The sun rises in the east and sets in the west. This is because Earth rotates on its axis from west to east.'"></textarea>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div>
+                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Speed:</label>
+                            <select id="audioSpeed" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+                                <option value="slow">🐢 Slow (for beginners)</option>
+                                <option value="normal" selected>🚶 Normal</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Language:</label>
+                            <select id="audioLanguage" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+                                <option value="english" selected>English</option>
+                                <option value="kiswahili">Kiswahili</option>
+                                <option value="french">French</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🎙️</span> Generate Audio
+                        </button>
+                        <button type="button" id="generateComparisonBtn" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span>⚡</span> Generate Slow + Normal (Comparison)
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="audioResult" style="margin-top: 2rem; display: none;">
+                    <h3 style="margin-bottom: 1rem;">🎵 Generated Audio:</h3>
+                    <div id="audioPlayerContainer"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flashcards Tab -->
+        <div id="flashcardsTab" class="tab-content" style="display: none;">
+            <div class="card" style="padding: 2rem;">
+                <h2 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>📇</span> Generate Flashcards
+                </h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Create interactive flashcards for vocabulary, concepts, or Q&A revision. Students can flip cards, shuffle, and use keyboard navigation.
+                </p>
+                
+                <form id="flashcardForm">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div>
+                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Subject:</label>
+                            <select id="flashcardSubject" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+                                <option value="English">English</option>
+                                <option value="Mathematics">Mathematics</option>
+                                <option value="Science">Science</option>
+                                <option value="Kiswahili">Kiswahili</option>
+                                <option value="Social Studies">Social Studies</option>
+                                <option value="CRE">CRE</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Grade:</label>
+                            <select id="flashcardGrade" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+                                <option value="Grade 4">Grade 4</option>
+                                <option value="Grade 5">Grade 5</option>
+                                <option value="Grade 6">Grade 6</option>
+                                <option value="Grade 7" selected>Grade 7</option>
+                                <option value="Grade 8">Grade 8</option>
+                                <option value="Grade 9">Grade 9</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Topic:</label>
+                            <input type="text" id="flashcardTopic" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-base); color: var(--text-primary);" 
+                                placeholder="e.g., Fractions, Grammar, Plants">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Card Type:</label>
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="cardType" value="vocabulary" checked> 📚 Vocabulary
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="cardType" value="concept"> 💡 Concepts
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="cardType" value="question"> ❓ Q&A
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <p style="margin-bottom: 0.5rem; font-weight: 600;">Quick Generate:</p>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            Let AI automatically create flashcards based on subject and topic.
+                        </p>
+                        <button type="button" id="autoGenerateBtn" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span>✨</span> Auto-Generate 10 Flashcards
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <p style="margin-bottom: 0.5rem; font-weight: 600;">Or Create Custom Cards:</p>
+                        <div id="customCardsContainer">
+                            <div class="custom-card-row" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <input type="text" class="card-front" placeholder="Front (term/question)" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-base); color: var(--text-primary);">
+                                <input type="text" class="card-back" placeholder="Back (definition/answer)" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-base); color: var(--text-primary);">
+                                <button type="button" class="remove-card-btn" style="padding: 0.5rem; border: none; background: #ffebee; color: #c62828; border-radius: 6px; cursor: pointer;">✕</button>
+                            </div>
+                        </div>
+                        <button type="button" id="addCardBtn" style="margin-top: 0.5rem; padding: 0.5rem 1rem; border: 2px dashed var(--border-color); background: transparent; color: var(--text-secondary); border-radius: 6px; cursor: pointer;">
+                            + Add Another Card
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 1.5rem;">
+                        <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span>📇</span> Generate Custom Flashcards
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="flashcardResult" style="margin-top: 2rem; display: none;">
+                    <h3 style="margin-bottom: 1rem;">✅ Flashcards Generated!</h3>
+                    <div id="flashcardLinks"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Video Tab -->
+        <div id="videoTab" class="tab-content" style="display: none;">
+            <div class="card" style="padding: 2rem;">
+                <div style="margin-bottom: 2rem;">
+                    <span style="font-size: 2rem;">🎬</span>
+                    <h2 style="display: inline; margin-left: 0.5rem;">Generate Educational Videos</h2>
+                </div>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+                    Create professional educational videos with text-to-speech narration. Perfect for vocabulary lessons, slideshows, or reading practice.
+                </p>
+                
+                <form id="videoForm">
+                    <div style="display: grid; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Video Type</label>
+                            <select id="videoType" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+                                <option value="vocabulary">📚 Vocabulary Video</option>
+                                <option value="slideshow">📖 Slideshow Presentation</option>
+                                <option value="reading">📖 Reading Practice Video</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Video Title</label>
+                            <input type="text" id="videoTitle" placeholder="e.g., Week 5 Vocabulary" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Color Theme</label>
+                            <select id="videoColorScheme" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary);">
+                                <option value="default">🔵 Default (Blue)</option>
+                                <option value="ocean">🌊 Ocean (Teal)</option>
+                                <option value="nature">🌿 Nature (Green)</option>
+                                <option value="sunset">🌅 Sunset (Orange)</option>
+                                <option value="purple">💜 Purple</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Vocabulary specific fields -->
+                        <div id="vocabularyFields">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Vocabulary Words (one per line: word - definition)</label>
+                            <textarea id="vocabularyWords" rows="6" placeholder="Perseverance - Persistence in doing something despite difficulty&#10;Resilience - The ability to recover quickly from difficulties&#10;Determination - Firmness of purpose" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); resize: vertical;"></textarea>
+                        </div>
+                        
+                        <!-- Slideshow specific fields -->
+                        <div id="slideshowFields" style="display: none;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Slides (Title | Content, one per line)</label>
+                            <textarea id="slideshowSlides" rows="6" placeholder="What are Fractions? | A fraction represents a part of a whole number&#10;Numerator | The top number in a fraction, shows how many parts we have&#10;Denominator | The bottom number, shows total equal parts" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); resize: vertical;"></textarea>
+                        </div>
+                        
+                        <!-- Reading specific fields -->
+                        <div id="readingFields" style="display: none;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Reading Speed</label>
+                            <select id="readingSpeed" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); margin-bottom: 1rem;">
+                                <option value="slow">🐢 Slow (for younger learners)</option>
+                                <option value="normal">🏃 Normal Speed</option>
+                            </select>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Text to Read</label>
+                            <textarea id="readingText" rows="6" placeholder="Enter the passage you want read aloud. The video will show each sentence as it's being read." style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); resize: vertical;"></textarea>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" id="videoWithAudio" checked>
+                            <label for="videoWithAudio">Include text-to-speech narration</label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <button type="submit" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🎬</span> Generate Video
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="videoGenerating" style="margin-top: 2rem; display: none; text-align: center;">
+                    <div style="font-size: 3rem; animation: pulse 1.5s infinite;">⏳</div>
+                    <p style="margin-top: 1rem; color: var(--text-secondary);">Generating video... This may take a minute or two.</p>
+                </div>
+                
+                <div id="videoResult" style="margin-top: 2rem; display: none;">
+                    <h3 style="margin-bottom: 1rem;">✅ Video Generated!</h3>
+                    <div id="videoLinks"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        // Remove active from all tabs
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.remove('active');
+            b.style.background = 'var(--bg-secondary)';
+            b.style.color = 'var(--text-primary)';
+        });
+        // Hide all content
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        
+        // Activate clicked tab
+        this.classList.add('active');
+        this.style.background = 'var(--color-accent)';
+        this.style.color = 'white';
+        
+        // Show corresponding content
+        const tabId = this.dataset.tab + 'Tab';
+        document.getElementById(tabId).style.display = 'block';
+    });
+});
+
+// Audio Generation
+document.getElementById('audioForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const text = document.getElementById('audioText').value.trim();
+    const speed = document.getElementById('audioSpeed').value;
+    const language = document.getElementById('audioLanguage').value;
+    
+    if (!text) {
+        alert('Please enter some text to convert to audio.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/generate/audio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, speed, language })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayAudioResult([{
+                speed: result.speed,
+                url: result.file_url,
+                duration: result.estimated_duration
+            }]);
+        } else {
+            alert('Error: ' + (result.error || 'Failed to generate audio'));
+        }
+    } catch (err) {
+        alert('Error generating audio. Please try again.');
+        console.error(err);
+    }
+});
+
+// Audio Comparison Generation
+document.getElementById('generateComparisonBtn').addEventListener('click', async function() {
+    const text = document.getElementById('audioText').value.trim();
+    const language = document.getElementById('audioLanguage').value;
+    
+    if (!text) {
+        alert('Please enter some text to convert to audio.');
+        return;
+    }
+    
+    this.textContent = '⏳ Generating...';
+    this.disabled = true;
+    
+    try {
+        const response = await fetch('/api/generate/audio-comparison', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, speeds: ['slow', 'normal'], language })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayAudioResult(result.audio_files);
+        } else {
+            alert('Error: ' + (result.error || 'Failed to generate audio'));
+        }
+    } catch (err) {
+        alert('Error generating audio. Please try again.');
+        console.error(err);
+    } finally {
+        this.textContent = '⚡ Generate Slow + Normal (Comparison)';
+        this.disabled = false;
+    }
+});
+
+function displayAudioResult(audioFiles) {
+    const container = document.getElementById('audioPlayerContainer');
+    const resultDiv = document.getElementById('audioResult');
+    
+    container.innerHTML = audioFiles.map(file => `
+        <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <span style="font-weight: 600; text-transform: capitalize;">
+                    ${file.speed === 'slow' ? '🐢' : '🚶'} ${file.speed} Speed
+                </span>
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">
+                    ${file.duration || ''}
+                </span>
+            </div>
+            ${file.error 
+                ? `<p style="color: #c62828;">${file.error}</p>`
+                : `<audio controls style="width: 100%;">
+                    <source src="${file.url}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                   </audio>
+                   <a href="${file.url}" download class="btn btn-secondary" style="margin-top: 0.5rem; display: inline-block;">
+                       ⬇️ Download MP3
+                   </a>`
+            }
+        </div>
+    `).join('');
+    
+    resultDiv.style.display = 'block';
+}
+
+// Flashcard Generation
+document.getElementById('addCardBtn').addEventListener('click', function() {
+    const container = document.getElementById('customCardsContainer');
+    const newRow = document.createElement('div');
+    newRow.className = 'custom-card-row';
+    newRow.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; margin-bottom: 0.5rem;';
+    newRow.innerHTML = `
+        <input type="text" class="card-front" placeholder="Front (term/question)" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-base); color: var(--text-primary);">
+        <input type="text" class="card-back" placeholder="Back (definition/answer)" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-base); color: var(--text-primary);">
+        <button type="button" class="remove-card-btn" style="padding: 0.5rem; border: none; background: #ffebee; color: #c62828; border-radius: 6px; cursor: pointer;">✕</button>
+    `;
+    container.appendChild(newRow);
+});
+
+// Remove card row
+document.getElementById('customCardsContainer').addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-card-btn')) {
+        const rows = document.querySelectorAll('.custom-card-row');
+        if (rows.length > 1) {
+            e.target.closest('.custom-card-row').remove();
+        }
+    }
+});
+
+// Auto-generate flashcards
+document.getElementById('autoGenerateBtn').addEventListener('click', async function() {
+    const subject = document.getElementById('flashcardSubject').value;
+    const grade = document.getElementById('flashcardGrade').value;
+    const topic = document.getElementById('flashcardTopic').value || subject;
+    
+    this.textContent = '⏳ Generating...';
+    this.disabled = true;
+    
+    try {
+        const response = await fetch('/api/generate/flashcards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject,
+                grade,
+                topic,
+                auto_generate: true,
+                count: 10
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayFlashcardResult(result);
+        } else {
+            alert('Error: ' + (result.error || 'Failed to generate flashcards'));
+        }
+    } catch (err) {
+        alert('Error generating flashcards. Please try again.');
+        console.error(err);
+    } finally {
+        this.textContent = '✨ Auto-Generate 10 Flashcards';
+        this.disabled = false;
+    }
+});
+
+// Custom flashcard submission
+document.getElementById('flashcardForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const subject = document.getElementById('flashcardSubject').value;
+    const grade = document.getElementById('flashcardGrade').value;
+    const topic = document.getElementById('flashcardTopic').value || subject;
+    const cardType = document.querySelector('input[name="cardType"]:checked').value;
+    
+    // Collect custom cards
+    const items = [];
+    document.querySelectorAll('.custom-card-row').forEach(row => {
+        const front = row.querySelector('.card-front').value.trim();
+        const back = row.querySelector('.card-back').value.trim();
+        if (front && back) {
+            items.push({ front, back });
+        }
+    });
+    
+    if (items.length === 0) {
+        alert('Please add at least one flashcard with front and back content.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/generate/flashcards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject,
+                grade,
+                topic,
+                type: cardType,
+                items
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayFlashcardResult(result);
+        } else {
+            alert('Error: ' + (result.error || 'Failed to generate flashcards'));
+        }
+    } catch (err) {
+        alert('Error generating flashcards. Please try again.');
+        console.error(err);
+    }
+});
+
+function displayFlashcardResult(result) {
+    const container = document.getElementById('flashcardLinks');
+    const resultDiv = document.getElementById('flashcardResult');
+    
+    container.innerHTML = `
+        <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 8px;">
+            <p style="margin-bottom: 1rem;">
+                <strong>${result.card_count} flashcards</strong> created for <strong>${result.topic}</strong>
+            </p>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <a href="${result.html_url}" target="_blank" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem;">
+                    🎴 Open Interactive Flashcards
+                </a>
+                <a href="${result.json_url}" download class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">
+                    ⬇️ Download Data (JSON)
+                </a>
+            </div>
+            <div style="margin-top: 1.5rem;">
+                <p style="font-weight: 600; margin-bottom: 0.5rem;">Preview:</p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem;">
+                    ${result.cards.slice(0, 4).map(card => `
+                        <div style="background: white; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-color);">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 0.25rem;">${card.front}</div>
+                            <div style="font-size: 0.85rem; color: #666;">${card.back.substring(0, 50)}...</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    resultDiv.style.display = 'block';
+}
+
+// Video type switching
+document.getElementById('videoType').addEventListener('change', function() {
+    const type = this.value;
+    document.getElementById('vocabularyFields').style.display = type === 'vocabulary' ? 'block' : 'none';
+    document.getElementById('slideshowFields').style.display = type === 'slideshow' ? 'block' : 'none';
+    document.getElementById('readingFields').style.display = type === 'reading' ? 'block' : 'none';
+});
+
+// Video Generation
+document.getElementById('videoForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const videoType = document.getElementById('videoType').value;
+    const title = document.getElementById('videoTitle').value.trim() || 'Educational Video';
+    const colorScheme = document.getElementById('videoColorScheme').value;
+    const withAudio = document.getElementById('videoWithAudio').checked;
+    
+    let requestData = {
+        type: videoType,
+        title: title,
+        color_scheme: colorScheme,
+        with_audio: withAudio
+    };
+    
+    // Build request based on video type
+    if (videoType === 'vocabulary') {
+        const wordsText = document.getElementById('vocabularyWords').value.trim();
+        if (!wordsText) {
+            alert('Please enter vocabulary words.');
+            return;
+        }
+        const words = wordsText.split('\n').filter(line => line.trim()).map(line => {
+            const parts = line.split('-').map(p => p.trim());
+            return {
+                word: parts[0] || '',
+                definition: parts.slice(1).join('-') || ''
+            };
+        });
+        requestData.words = words;
+    } else if (videoType === 'slideshow') {
+        const slidesText = document.getElementById('slideshowSlides').value.trim();
+        if (!slidesText) {
+            alert('Please enter slideshow content.');
+            return;
+        }
+        const slides = slidesText.split('\n').filter(line => line.trim()).map(line => {
+            const parts = line.split('|').map(p => p.trim());
+            return {
+                title: parts[0] || '',
+                content: parts.slice(1).join('|') || ''
+            };
+        });
+        requestData.slides = slides;
+    } else if (videoType === 'reading') {
+        const text = document.getElementById('readingText').value.trim();
+        if (!text) {
+            alert('Please enter text for the reading video.');
+            return;
+        }
+        requestData.text = text;
+        requestData.speed = document.getElementById('readingSpeed').value;
+    }
+    
+    // Show generating message
+    document.getElementById('videoGenerating').style.display = 'block';
+    document.getElementById('videoResult').style.display = 'none';
+    
+    try {
+        const response = await fetch('/api/generate/video', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestData)
+        });
+        
+        const result = await response.json();
+        document.getElementById('videoGenerating').style.display = 'none';
+        
+        if (result.success) {
+            document.getElementById('videoResult').style.display = 'block';
+            let videoInfo = `<p><strong>Title:</strong> ${result.title}</p>`;
+            videoInfo += `<p><strong>Duration:</strong> ${result.duration}</p>`;
+            if (result.word_count) videoInfo += `<p><strong>Words:</strong> ${result.word_count}</p>`;
+            if (result.slide_count) videoInfo += `<p><strong>Slides:</strong> ${result.slide_count}</p>`;
+            if (result.sentence_count) videoInfo += `<p><strong>Sentences:</strong> ${result.sentence_count}</p>`;
+            videoInfo += `<p><strong>Narration:</strong> ${result.with_audio !== false ? 'Yes' : 'No'}</p>`;
+            videoInfo += `<div style="margin-top: 1rem;">
+                <video controls style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                    <source src="${result.file_url}" type="video/mp4">
+                    Your browser does not support video playback.
+                </video>
+            </div>`;
+            videoInfo += `<a href="${result.file_url}" download="${result.filename}" class="btn btn-primary" style="margin-top: 1rem; display: inline-block;">
+                <span>⬇️</span> Download Video
+            </a>`;
+            document.getElementById('videoLinks').innerHTML = videoInfo;
+        } else {
+            alert('Error: ' + (result.error || 'Failed to generate video'));
+        }
+    } catch (err) {
+        document.getElementById('videoGenerating').style.display = 'none';
+        alert('Error generating video. Please try again.');
+        console.error(err);
+    }
+});
+
+// Handle feature query parameter to pre-fill prompt
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const feature = urlParams.get('feature');
+    const promptInput = document.getElementById('promptInput');
+    const chatResponse = document.getElementById('chatResponse');
+    
+    const featurePrompts = {
+        'lesson_plan': 'Generate a Grade 7 English lesson plan on ',
+        'scheme_of_work': 'Create a scheme of work for Term 1 English Grade ',
+        'assessment': 'Develop an assessment rubric for Grade 7 '
+    };
+    
+    const featureMessages = {
+        'lesson_plan': 'Ready to generate a lesson plan! Complete the prompt with your topic and grade.',
+        'scheme_of_work': 'Ready to create a scheme of work! Specify the grade, subject, and term.',
+        'assessment': 'Ready to build an assessment rubric! Add the subject and activity type.'
+    };
+    
+    if (feature && featurePrompts[feature]) {
+        promptInput.value = featurePrompts[feature];
+        promptInput.focus();
+        promptInput.setSelectionRange(promptInput.value.length, promptInput.value.length);
+        
+        // Update the welcome message
+        chatResponse.innerHTML = `<p class="assistant-msg">👋 ${featureMessages[feature]}</p>`;
+    }
+});
+</script>
+{% endblock %}

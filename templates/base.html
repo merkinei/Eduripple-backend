@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="EduRipple — AI-powered lesson plans, schemes of work, and assessments aligned with the Kenyan CBC curriculum. Free for teachers." />
+    <meta name="keywords" content="CBC, Kenya, lesson plans, teaching assistant, AI, KICD, competency based curriculum, teacher resources" />
+    <meta property="og:title" content="EduRipple — AI Teaching Assistant for CBC" />
+    <meta property="og:description" content="Generate CBC-aligned lesson plans, schemes of work, and rubrics in minutes. Built for Kenyan teachers." />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml" />
+    <title>{% block title %}EduRipple{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+<body>
+    <header class="site-header">
+        <div class="container nav-wrap">
+            <a href="{{ url_for('home') }}" class="brand" aria-label="EduRipple Home">
+                <img
+                    src="{{ url_for('static', filename='images/eduripple-logo.png') }}"
+                    alt="EduRipple"
+                    class="brand-logo"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';"
+                />
+                <span class="brand-text" style="display:none;">EduRipple</span>
+            </a>
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="siteNav">
+                <span class="menu-icon"></span>
+            </button>
+            <nav class="nav" id="siteNav" aria-label="Main navigation">
+                <a href="{{ url_for('home') }}">Home</a>
+                <a href="{{ url_for('features') }}">Features</a>
+                <a href="{{ url_for('library') }}">Library</a>
+                <a href="{{ url_for('how_it_works') }}">How It Works</a>
+                <a href="{{ url_for('ai_chat') }}">AI Chat Assistant</a>
+                <a href="{{ url_for('about') }}">About</a>
+                <a href="{{ url_for('contact') }}">Contact</a>
+            </nav>
+            <div class="header-actions">
+                <div class="account-menu-wrap">
+                    <button
+                        class="account-toggle"
+                        id="accountToggle"
+                        aria-label="Open account menu"
+                        aria-expanded="false"
+                        aria-controls="accountMenu"
+                    >☰</button>
+                    <div class="account-menu" id="accountMenu" role="menu" hidden>
+                        {% if is_teacher_authenticated %}
+                        <div class="account-header">
+                            <span class="account-name">{{ teacher_name }}</span>
+                            <span class="account-email">{{ teacher_email }}</span>
+                        </div>
+                        <a href="{{ url_for('teacher_dashboard') }}" role="menuitem">Dashboard</a>
+                        <a href="{{ url_for('teacher_account') }}" role="menuitem">Account Details</a>
+                        <a href="{{ url_for('teacher_settings') }}" role="menuitem">Settings</a>
+                        <form method="post" action="{{ url_for('teacher_signout') }}" class="account-signout-form">
+                            <button type="submit" class="account-signout-btn" role="menuitem">Sign Out</button>
+                        </form>
+                        {% else %}
+                        <a href="{{ url_for('teacher_signin') }}" role="menuitem">Sign In</a>
+                        <a href="{{ url_for('teacher_signup') }}" role="menuitem">Sign Up</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <section class="flash-wrap">
+                <div class="container">
+                    {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 2rem; padding: 1rem 0;">
+                <div>
+                    <p style="margin: 0; font-weight: 600;">EduRipple</p>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--text-secondary);">AI-powered teaching assistant aligned with the Kenyan CBC Curriculum.</p>
+                    <p style="margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--text-secondary);">Version {{ app_version }} · Last updated February 2026</p>
+                </div>
+                <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.9rem;">
+                    <a href="{{ url_for('terms') }}" style="color: var(--text-secondary); text-decoration: none;">Terms of Service</a>
+                    <a href="{{ url_for('privacy') }}" style="color: var(--text-secondary); text-decoration: none;">Privacy Policy</a>
+                    <a href="{{ url_for('ai_disclosure') }}" style="color: var(--text-secondary); text-decoration: none;">AI Disclosure</a>
+                    <a href="{{ url_for('contact') }}" style="color: var(--text-secondary); text-decoration: none;">Contact</a>
+                </div>
+            </div>
+            <hr style="border: none; border-top: 1px solid var(--border-color); margin: 0.5rem 0;" />
+            <p style="text-align: center; font-size: 0.8rem; color: var(--text-secondary); margin: 0.75rem 0 0;">© {{ year }} EduRipple. Supporting CBC teachers in Kenya. 🇰🇪</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/react-components.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ripple-effect.js') }}"></script>
+</body>
+</html>

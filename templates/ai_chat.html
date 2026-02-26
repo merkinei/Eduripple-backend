@@ -1,0 +1,843 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | AI Teaching Assistant{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h1>AI Teaching Assistant</h1>
+        <p>Generate lesson plans, audio, videos, flashcards, and more. Just describe what you need!</p>
+        <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: #e8f5e9; color: #2e7d32; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; margin-bottom: 1rem;">
+            <span>🇰🇪</span> Aligned with Kenyan CBC Curriculum
+        </div>
+
+        <div class="chat-layout">
+            <aside class="card tips">
+                <h2>What Can I Create?</h2>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="margin-bottom: 0.75rem; display: flex; align-items: flex-start; gap: 0.5rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg> <span><strong>Lesson Plans</strong> - "Create a Grade 7 Math lesson on fractions"</span></li>
+                    <li style="margin-bottom: 0.75rem; display: flex; align-items: flex-start; gap: 0.5rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> <span><strong>Audio</strong> - "Generate audio of this passage for listening practice"</span></li>
+                    <li style="margin-bottom: 0.75rem; display: flex; align-items: flex-start; gap: 0.5rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg> <span><strong>Video</strong> - "Create a vocabulary video for Grade 5 English"</span></li>
+                    <li style="margin-bottom: 0.75rem; display: flex; align-items: flex-start; gap: 0.5rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M2 10h20"></path></svg> <span><strong>Flashcards</strong> - "Make flashcards for Science plants topic"</span></li>
+                    <li style="margin-bottom: 0.75rem; display: flex; align-items: flex-start; gap: 0.5rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg> <span><strong>Schemes</strong> - "Generate scheme of work for Term 1 English"</span></li>
+                    <li style="margin-bottom: 0.75rem; display: flex; align-items: flex-start; gap: 0.5rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg> <span><strong>Rubrics</strong> - "Create assessment rubric for group discussion"</span></li>
+                </ul>
+                <h3 style="margin-top: 1.5rem;">Quick Tips</h3>
+                <p style="font-size: 0.9rem; color: var(--text-secondary);">Include grade level, subject, and topic for best results. Click the icons below the prompt box to set mode.</p>
+            </aside>
+
+            <div class="chat-panel">
+                <div id="chatResponse" class="chat-response" aria-live="polite">
+                    <p class="assistant-msg">Hello teacher! What would you like me to create today?</p>
+                </div>
+                
+                <div style="font-size: 0.75rem; color: var(--text-secondary); text-align: center; margin-bottom: 0.5rem;">
+                    ⚠️ AI-generated content — please <a href="{{ url_for('ai_disclosure') }}" style="color: inherit; text-decoration: underline;">review before classroom use</a>.
+                </div>
+                
+                <div id="mediaResult" class="card" style="display: none; margin-bottom: 1rem; padding: 1rem;">
+                    <div id="mediaResultContent"></div>
+                </div>
+                
+                <div id="downloadLinks" class="card download-links" hidden>
+                    <h3>Download Output</h3>
+                    <div class="cta-row">
+                        <a id="pdfDownload" class="btn btn-primary" href="#" target="_blank" rel="noopener">Download PDF</a>
+                        <a id="wordDownload" class="btn btn-secondary" href="#" target="_blank" rel="noopener">Download Word</a>
+                    </div>
+                </div>
+
+                <form id="chatForm" class="chat-form">
+                    <label for="promptInput" class="sr-only">Prompt</label>
+                    <div class="prompt-container">
+                        <textarea id="promptInput" rows="4" placeholder="Click a mode button below (Video, Audio, Flashcards) then type your topic. Or type 'lesson plan' for CBC content."></textarea>
+                        
+                        <!-- Mode indicator -->
+                        <div id="modeIndicator" class="mode-indicator">
+                            <span id="modeIcon">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                                </svg>
+                            </span>
+                            <span id="modeText">Lesson Plan</span>
+                            <button type="button" id="clearMode" class="clear-mode-btn">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Bottom toolbar -->
+                        <div class="prompt-toolbar">
+                            <!-- Resource type icons -->
+                            <div class="resource-icons">
+                                <button type="button" class="icon-btn" data-mode="lesson" title="Lesson Plan">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                                    </svg>
+                                </button>
+                                <button type="button" class="icon-btn" data-mode="audio" title="Audio">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                                        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                                    </svg>
+                                </button>
+                                <button type="button" class="icon-btn" data-mode="video" title="Video">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                                    </svg>
+                                </button>
+                                <button type="button" class="icon-btn" data-mode="flashcards" title="Flashcards">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                                        <path d="M12 8v8"></path>
+                                        <path d="M8 12h8"></path>
+                                    </svg>
+                                </button>
+                                <button type="button" class="icon-btn" data-mode="scheme" title="Scheme of Work">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                        <polyline points="10 9 9 9 8 9"></polyline>
+                                    </svg>
+                                </button>
+                                <button type="button" class="icon-btn" data-mode="rubric" title="Assessment Rubric">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <!-- Send button -->
+                            <button type="submit" id="sendBtn" class="send-btn" title="Send">
+                                <svg id="sendIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 2L11 13"></path>
+                                    <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                <!-- Quick options for specific modes -->
+                <div id="modeOptions" style="margin-top: 1rem; display: none;">
+                    <!-- Audio options -->
+                    <div id="audioOptions" class="mode-option-panel" style="display: none; background: var(--bg-secondary); padding: 1rem; border-radius: 8px;">
+                        <p style="font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg> Audio Settings (ElevenLabs AI):</p>
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                Voice:
+                                <select id="audioVoice" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    <option value="rachel" selected>Rachel - Friendly female</option>
+                                    <option value="sarah">Sarah - Professional female</option>
+                                    <option value="emily">Emily - Gentle female (young learners)</option>
+                                    <option value="matilda">Matilda - Warm female</option>
+                                    <option value="adam">Adam - Confident male</option>
+                                    <option value="josh">Josh - Enthusiastic male</option>
+                                    <option value="thomas">Thomas - Calm male</option>
+                                    <option value="matthew">Matthew - Audiobook male</option>
+                                    <option value="dave">Dave - British male</option>
+                                    <option value="paul">Paul - Narration male</option>
+                                </select>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                Content Type:
+                                <select id="audioContentType" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    <option value="lesson" selected>Lesson</option>
+                                    <option value="story">Story/Reading</option>
+                                    <option value="vocabulary">Vocabulary</option>
+                                    <option value="exercise">Exercise/Quiz</option>
+                                </select>
+                            </label>
+                        </div>
+                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">Pro tip: Use Emily for young learners, Matthew for stories, Rachel for lessons.</p>
+                    </div>
+                    
+                    <!-- Flashcard options -->
+                    <div id="flashcardOptions" class="mode-option-panel" style="display: none; background: var(--bg-secondary); padding: 1rem; border-radius: 8px;">
+                        <p style="font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M2 10h20"></path></svg> Flashcard Settings:</p>
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                Subject:
+                                <select id="flashcardSubject" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    <option value="English">English</option>
+                                    <option value="Mathematics">Mathematics</option>
+                                    <option value="Science">Science</option>
+                                    <option value="Kiswahili">Kiswahili</option>
+                                </select>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                Grade:
+                                <select id="flashcardGrade" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    <option value="Grade 4">Grade 4</option>
+                                    <option value="Grade 5">Grade 5</option>
+                                    <option value="Grade 6">Grade 6</option>
+                                    <option value="Grade 7" selected>Grade 7</option>
+                                    <option value="Grade 8">Grade 8</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Video options -->
+                    <div id="videoOptions" class="mode-option-panel" style="display: none; background: var(--bg-secondary); padding: 1rem; border-radius: 8px;">
+                        <p style="font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg> Video Settings:</p>
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                Type:
+                                <select id="videoType" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    <option value="vocabulary">Vocabulary Video</option>
+                                    <option value="slideshow">Slideshow Explainer</option>
+                                    <option value="reading">Reading Video</option>
+                                </select>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                Subject:
+                                <select id="videoSubject" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    <option value="English">English</option>
+                                    <option value="Mathematics">Mathematics</option>
+                                    <option value="Science">Science</option>
+                                    <option value="Social Studies">Social Studies</option>
+                                    <option value="Kiswahili">Kiswahili</option>
+                                    <option value="Religious Education">Religious Education</option>
+                                    <option value="Creative Arts">Creative Arts</option>
+                                    <option value="Health Education">Health Education</option>
+                                </select>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                Grade:
+                                <select id="videoGrade" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    <option value="Grade 4">Grade 4</option>
+                                    <option value="Grade 5">Grade 5</option>
+                                    <option value="Grade 6">Grade 6</option>
+                                    <option value="Grade 7" selected>Grade 7</option>
+                                    <option value="Grade 8">Grade 8</option>
+                                    <option value="Grade 9">Grade 9</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                AI Voice:
+                                <select id="videoVoice" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    <option value="rachel">Rachel (Female, Calm)</option>
+                                    <option value="adam">Adam (Male, Deep)</option>
+                                    <option value="domi">Domi (Female, Strong)</option>
+                                    <option value="elli">Elli (Female, Warm)</option>
+                                    <option value="josh">Josh (Male, Storytelling)</option>
+                                    <option value="arnold">Arnold (Male, Narration)</option>
+                                    <option value="bella">Bella (Female, Soft)</option>
+                                    <option value="charlotte">Charlotte (Female, Swedish)</option>
+                                    <option value="clyde">Clyde (Male, War Veteran)</option>
+                                    <option value="emily">Emily (Female, Young)</option>
+                                </select>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                Theme:
+                                <select id="videoColorScheme" style="padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    <option value="default">Classic (Blue/White)</option>
+                                    <option value="ocean">Ocean (Teal/Blue)</option>
+                                    <option value="sunset">Sunset (Orange/Purple)</option>
+                                    <option value="nature">Nature (Green/Earth)</option>
+                                    <option value="dark">Dark Mode</option>
+                                    <option value="warm">Warm (Red/Orange)</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+.prompt-container {
+    position: relative;
+    background: var(--bg-base);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+.prompt-container:focus-within {
+    border-color: var(--color-accent);
+}
+.prompt-container textarea {
+    width: 100%;
+    border: none;
+    padding: 1rem;
+    padding-bottom: 0.5rem;
+    resize: none;
+    background: transparent;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+.prompt-container textarea:focus {
+    outline: none;
+}
+.mode-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--color-accent);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    display: none;
+    align-items: center;
+    gap: 4px;
+}
+.mode-indicator svg {
+    display: block;
+}
+.clear-mode-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    margin-left: 4px;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+}
+.prompt-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+}
+.resource-icons {
+    display: flex;
+    gap: 2px;
+}
+.icon-btn {
+    padding: 6px 8px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+    opacity: 0.7;
+}
+.icon-btn:hover {
+    background: rgba(255, 107, 157, 0.15);
+    opacity: 1;
+    transform: scale(1.1);
+}
+.icon-btn.active {
+    background: var(--color-accent) !important;
+    opacity: 1;
+}
+.send-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+.send-btn:hover {
+    background: #333;
+}
+.send-btn:disabled {
+    background: #666;
+    cursor: not-allowed;
+}
+.send-btn svg {
+    flex-shrink: 0;
+}
+.mode-indicator {
+    display: none;
+    align-items: center;
+    gap: 6px;
+}
+.mode-indicator svg {
+    display: block;
+}
+#chatResponse {
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+/* Light mode specific */
+@media (prefers-color-scheme: light) {
+    .send-btn {
+        background: #1a1a1a;
+    }
+    .send-btn:hover {
+        background: #333;
+    }
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+</style>
+
+
+<script>
+// Signal to main.js that this page handles form submission itself
+// (prevents main.js from adding a duplicate /api/cbc handler)
+window.__aiChatFormHandled = true;
+
+let currentMode = null;
+
+const modeIcons = {
+    lesson: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>',
+    audio: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>',
+    video: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>',
+    flashcards: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M12 8v8"></path><path d="M8 12h8"></path></svg>',
+    scheme: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>',
+    rubric: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+};
+
+const modeConfig = {
+    lesson: { text: 'Lesson Plan', placeholder: 'Describe the lesson plan you need... e.g., "Grade 7 Math lesson on fractions"' },
+    audio: { text: 'Audio', placeholder: 'Enter the text you want converted to audio...' },
+    video: { text: 'Video', placeholder: 'Just type your topic! e.g., "Water Cycle" or "Fractions" - AI will generate the video content' },
+    flashcards: { text: 'Flashcards', placeholder: 'Enter the topic for flashcards... e.g., "Grade 7 Science - Plants"' },
+    scheme: { text: 'Scheme', placeholder: 'Describe the scheme of work... e.g., "Term 1 English Grade 8"' },
+    rubric: { text: 'Rubric', placeholder: 'Describe the assessment... e.g., "Group discussion rubric for Grade 9 CRE"' }
+};
+
+// Icon button click handlers
+document.querySelectorAll('.icon-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const mode = this.dataset.mode;
+        
+        // Toggle mode
+        if (currentMode === mode) {
+            clearModeSelection();
+            return;
+        }
+        
+        // Set new mode
+        currentMode = mode;
+        const config = modeConfig[mode];
+        
+        // Update UI
+        document.querySelectorAll('.icon-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Show mode indicator with SVG icon
+        document.getElementById('modeIndicator').style.display = 'flex';
+        document.getElementById('modeIcon').innerHTML = modeIcons[mode];
+        document.getElementById('modeText').textContent = config.text;
+        
+        // Update placeholder
+        document.getElementById('promptInput').placeholder = config.placeholder;
+        document.getElementById('promptInput').focus();
+        
+        // Show relevant options panel
+        document.getElementById('modeOptions').style.display = 'block';
+        document.querySelectorAll('.mode-option-panel').forEach(p => p.style.display = 'none');
+        
+        if (mode === 'audio') {
+            document.getElementById('audioOptions').style.display = 'block';
+        } else if (mode === 'flashcards') {
+            document.getElementById('flashcardOptions').style.display = 'block';
+        } else if (mode === 'video') {
+            document.getElementById('videoOptions').style.display = 'block';
+        }
+    });
+});
+
+// Clear mode
+document.getElementById('clearMode').addEventListener('click', clearModeSelection);
+
+function clearModeSelection() {
+    currentMode = null;
+    document.querySelectorAll('.icon-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('modeIndicator').style.display = 'none';
+    document.getElementById('modeOptions').style.display = 'none';
+    document.getElementById('promptInput').placeholder = 'Click a mode button below (Video, Audio, Flashcards) then type your topic. Or type "lesson plan" for CBC content.';
+}
+
+// Form submission
+document.getElementById('chatForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const prompt = document.getElementById('promptInput').value.trim();
+    if (!prompt) {
+        alert('Please enter a prompt');
+        return;
+    }
+    
+    const sendBtn = document.getElementById('sendBtn');
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Generating...';
+    
+    // Use currentMode if set, otherwise detect from prompt
+    let detectedMode = currentMode;
+    if (!detectedMode) {
+        detectedMode = detectModeFromPrompt(prompt);
+    }
+    
+    // If still no mode detected, ask user to pick one
+    if (!detectedMode) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Generate';
+        // Show mode selection prompt
+        const statusDiv = document.getElementById('chatResponse') || document.getElementById('responseArea');
+        if (statusDiv) {
+            statusDiv.innerHTML = `<div style="padding: 1.5rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin: 1rem 0;">
+                <p style="font-weight: 600; margin-bottom: 0.75rem; color: #856404;">Please select what you want to create:</p>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button onclick="document.querySelector('[data-mode=video]').click()" style="padding: 0.5rem 1rem; background: #4F46E5; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                        Video
+                    </button>
+                    <button onclick="document.querySelector('[data-mode=audio]').click()" style="padding: 0.5rem 1rem; background: #059669; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                        Audio
+                    </button>
+                    <button onclick="document.querySelector('[data-mode=flashcards]').click()" style="padding: 0.5rem 1rem; background: #D97706; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                        Flashcards
+                    </button>
+                    <button onclick="document.querySelector('[data-mode=lesson]').click()" style="padding: 0.5rem 1rem; background: #6B7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                        Lesson Plan
+                    </button>
+                    <button onclick="document.querySelector('[data-mode=scheme]').click()" style="padding: 0.5rem 1rem; background: #6B7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                        Scheme of Work
+                    </button>
+                </div>
+                <p style="margin-top: 0.75rem; font-size: 0.85rem; color: #856404;">Click a button above, then press Generate again.</p>
+            </div>`;
+        }
+        return;
+    }
+    
+    // Show what mode is being used
+    const statusDiv = document.getElementById('chatResponse') || document.getElementById('responseArea');
+    if (statusDiv) {
+        const modeLabels = { video: 'Video', audio: 'Audio', flashcards: 'Flashcards', lesson: 'Lesson Plan', scheme: 'Scheme', rubric: 'Rubric' };
+        const modeLabel = modeLabels[detectedMode] || 'Lesson Plan';
+        statusDiv.innerHTML = `<div style="padding: 1.5rem; text-align: center; color: var(--text-secondary);">
+            <div style="display: inline-block; width: 30px; height: 30px; border: 3px solid var(--color-accent); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="margin-top: 0.75rem; font-weight: 500;">Generating ${modeLabel}...</p>
+            <p style="font-size: 0.85rem; margin-top: 0.25rem;">Topic: "${prompt}"</p>
+        </div>`;
+    }
+    
+    try {
+        if (detectedMode === 'audio') {
+            await handleAudioGeneration(prompt);
+        } else if (detectedMode === 'video') {
+            await handleVideoGeneration(prompt);
+        } else if (detectedMode === 'flashcards') {
+            await handleFlashcardGeneration(prompt);
+        } else {
+            await handleCBCAssistant(prompt);
+        }
+    } catch (err) {
+        console.error(err);
+        showError('An error occurred. Please try again.');
+    } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Generate';
+    }
+});
+
+function detectModeFromPrompt(prompt) {
+    const lower = prompt.toLowerCase();
+    
+    // Audio detection
+    if (lower.includes('audio') || lower.includes('listen') || lower.includes('read aloud') || 
+        lower.includes('speech') || lower.includes('pronounce') || lower.includes('narrat') ||
+        lower.includes('record') || lower.includes('voice')) {
+        return 'audio';
+    }
+    
+    // Video detection
+    if (lower.includes('video') || lower.includes('animation') || lower.includes('slideshow') ||
+        lower.includes('vocabulary video') || lower.includes('reading video') ||
+        lower.includes('create a video') || lower.includes('make a video') ||
+        lower.includes('generate a video') || lower.includes('make video')) {
+        return 'video';
+    }
+    
+    // Flashcard detection
+    if (lower.includes('flashcard') || lower.includes('flash card') || lower.includes('quiz card')) {
+        return 'flashcards';
+    }
+    
+    // Lesson plan / CBC assistant - explicit keywords
+    if (lower.includes('lesson plan') || lower.includes('lesson') || lower.includes('scheme') || 
+        lower.includes('rubric') || lower.includes('assessment') || lower.includes('curriculum') ||
+        lower.includes('strand') || lower.includes('learning outcome')) {
+        return 'lesson';
+    }
+    
+    // No clear mode detected — return null to trigger mode selection prompt
+    return null;
+}
+
+async function handleAudioGeneration(prompt) {
+    const voice = document.getElementById('audioVoice').value;
+    const contentType = document.getElementById('audioContentType').value;
+    
+    const response = await fetch('/api/generate/audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            text: prompt, 
+            voice: voice,
+            content_type: contentType
+        })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+        const providerBadge = result.provider === 'elevenlabs' 
+            ? '<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">ElevenLabs AI</span>'
+            : '<span style="background: #6b7280; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">Basic TTS</span>';
+        
+        showMediaResult(`
+            <h3>Audio Generated! ${providerBadge}</h3>
+            <p style="margin: 0.5rem 0;">Voice: ${result.voice || 'default'} | Duration: ~${result.estimated_duration} | ${result.char_count || result.word_count} chars</p>
+            <audio controls style="width: 100%; margin: 1rem 0;">
+                <source src="${result.file_url}" type="audio/mpeg">
+            </audio>
+            <a href="${result.file_url}" download class="btn btn-primary">Download MP3</a>
+        `);
+    } else {
+        showError(result.error || 'Failed to generate audio');
+    }
+}
+
+async function handleVideoGeneration(prompt) {
+    const videoType = document.getElementById('videoType').value;
+    const voice = document.getElementById('videoVoice').value;
+    const colorScheme = document.getElementById('videoColorScheme').value;
+    const subject = document.getElementById('videoSubject').value;
+    const grade = document.getElementById('videoGrade').value;
+    
+    const response = await fetch('/api/generate/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            topic: prompt,
+            video_type: videoType,
+            voice: voice,
+            color_scheme: colorScheme,
+            subject: subject,
+            grade: grade
+        })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+        showMediaResult(`
+            <h3>Video Generated!</h3>
+            <p style="margin: 0.5rem 0;">${result.topic || result.title} | ${result.duration || ''}</p>
+            <video controls style="width: 100%; max-width: 640px; margin: 1rem 0; border-radius: 8px;">
+                <source src="${result.file_url}" type="video/mp4">
+            </video>
+            <a href="${result.file_url}" download class="btn btn-primary">Download Video</a>
+        `);
+    } else {
+        showError(result.error || 'Failed to generate video');
+    }
+}
+
+async function handleFlashcardGeneration(prompt) {
+    const subject = document.getElementById('flashcardSubject').value;
+    const grade = document.getElementById('flashcardGrade').value;
+    
+    const response = await fetch('/api/generate/flashcards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            topic: prompt,
+            subject,
+            grade,
+            auto_generate: true,
+            count: 10
+        })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+        showMediaResult(`
+            <h3>Flashcards Generated!</h3>
+            <p style="margin: 0.5rem 0;">${result.card_count} cards for "${result.topic}"</p>
+            <div style="display: flex; gap: 1rem; margin: 1rem 0; flex-wrap: wrap;">
+                <a href="${result.html_url}" target="_blank" class="btn btn-primary">Open Interactive Cards</a>
+                <a href="${result.json_url}" download class="btn btn-secondary">Download Data</a>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 1rem;">
+                ${result.cards.slice(0, 4).map(c => `
+                    <div style="background: white; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color);">
+                        <strong style="color: #333;">${c.front}</strong>
+                    </div>
+                `).join('')}
+            </div>
+        `);
+    } else {
+        showError(result.error || 'Failed to generate flashcards');
+    }
+}
+
+async function handleCBCAssistant(prompt) {
+    const response = await fetch('/api/cbc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+        const chatResponse = document.getElementById('chatResponse');
+        
+        // Multi-lesson plan rendering with tabs
+        if (result.num_lessons && result.num_lessons > 1 && result.lesson_plans && result.lesson_plans.length > 1) {
+            const numLessons = result.num_lessons;
+            const topic = result.topic || 'Topic';
+            const subject = result.subject || '';
+            const grade = result.grade || '';
+            
+            // Build tab navigation
+            let tabsHtml = `<div class="lesson-tabs-container" style="margin-bottom: 0;">`;
+            tabsHtml += `<div style="background: linear-gradient(135deg, #4F46E5, #7C3AED); color: white; padding: 1rem 1.25rem; border-radius: 8px 8px 0 0;">`;
+            tabsHtml += `<h3 style="margin: 0; font-size: 1.1rem;">📚 ${subject} ${grade} — ${topic}</h3>`;
+            tabsHtml += `<p style="margin: 0.25rem 0 0; font-size: 0.85rem; opacity: 0.9;">Curriculum requires <strong>${numLessons} lessons</strong> for this strand. All lesson plans generated below.</p>`;
+            tabsHtml += `</div>`;
+            
+            // Tab buttons
+            tabsHtml += `<div class="lesson-tab-bar" style="display: flex; flex-wrap: wrap; gap: 2px; background: #f1f5f9; padding: 4px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">`;
+            for (let i = 0; i < numLessons; i++) {
+                const active = i === 0 ? 'background: white; color: #4F46E5; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1);' : 'background: transparent; color: #64748b;';
+                tabsHtml += `<button onclick="showLessonTab(${i})" id="lessonTabBtn${i}" style="padding: 0.4rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; ${active}">Lesson ${i + 1}</button>`;
+            }
+            tabsHtml += `<button onclick="showAllLessons()" id="lessonTabBtnAll" style="padding: 0.4rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; background: transparent; color: #64748b; margin-left: auto;">View All</button>`;
+            tabsHtml += `</div>`;
+            
+            // Tab content panels
+            for (let i = 0; i < result.lesson_plans.length; i++) {
+                const display = i === 0 ? 'block' : 'none';
+                tabsHtml += `<div id="lessonTabContent${i}" class="lesson-tab-content" style="display: ${display}; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px; padding: 1.25rem; background: white; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; line-height: 1.6; max-height: 600px; overflow-y: auto;">${escapeHtml(result.lesson_plans[i])}</div>`;
+            }
+            
+            // "All lessons" panel (hidden by default)
+            tabsHtml += `<div id="lessonTabContentAll" class="lesson-tab-content" style="display: none; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px; padding: 1.25rem; background: white; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; line-height: 1.6; max-height: 600px; overflow-y: auto;">${escapeHtml(result.response)}</div>`;
+            
+            tabsHtml += `</div>`;
+            
+            chatResponse.innerHTML = tabsHtml;
+        } else {
+            // Single lesson plan or other content
+            chatResponse.innerHTML = `<div class="assistant-msg" style="white-space: pre-wrap;">${result.response}</div>`;
+        }
+        
+        // Show download links if available
+        if (result.downloads) {
+            const downloadLinks = document.getElementById('downloadLinks');
+            downloadLinks.hidden = false;
+            if (result.downloads.pdf) {
+                document.getElementById('pdfDownload').href = result.downloads.pdf;
+            }
+            if (result.downloads.docx) {
+                document.getElementById('wordDownload').href = result.downloads.docx;
+            }
+        }
+    } else {
+        showError(result.error || 'Failed to generate content');
+    }
+}
+
+function showLessonTab(index) {
+    // Hide all panels
+    document.querySelectorAll('.lesson-tab-content').forEach(el => el.style.display = 'none');
+    // Reset all tab buttons
+    document.querySelectorAll('.lesson-tab-bar button').forEach(btn => {
+        btn.style.background = 'transparent';
+        btn.style.color = '#64748b';
+        btn.style.fontWeight = 'normal';
+        btn.style.boxShadow = 'none';
+    });
+    // Show selected panel
+    const panel = document.getElementById('lessonTabContent' + index);
+    if (panel) panel.style.display = 'block';
+    // Highlight selected tab
+    const btn = document.getElementById('lessonTabBtn' + index);
+    if (btn) {
+        btn.style.background = 'white';
+        btn.style.color = '#4F46E5';
+        btn.style.fontWeight = '600';
+        btn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+    }
+}
+
+function showAllLessons() {
+    document.querySelectorAll('.lesson-tab-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.lesson-tab-bar button').forEach(btn => {
+        btn.style.background = 'transparent';
+        btn.style.color = '#64748b';
+        btn.style.fontWeight = 'normal';
+        btn.style.boxShadow = 'none';
+    });
+    const allPanel = document.getElementById('lessonTabContentAll');
+    if (allPanel) allPanel.style.display = 'block';
+    const allBtn = document.getElementById('lessonTabBtnAll');
+    if (allBtn) {
+        allBtn.style.background = 'white';
+        allBtn.style.color = '#4F46E5';
+        allBtn.style.fontWeight = '600';
+        allBtn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showMediaResult(html) {
+    const mediaResult = document.getElementById('mediaResult');
+    const mediaContent = document.getElementById('mediaResultContent');
+    mediaContent.innerHTML = html;
+    mediaResult.style.display = 'block';
+    
+    // Also add to chat
+    const chatResponse = document.getElementById('chatResponse');
+    chatResponse.innerHTML = `<p class="assistant-msg">Your content has been generated! See below.</p>`;
+}
+
+function showError(message) {
+    const chatResponse = document.getElementById('chatResponse');
+    chatResponse.innerHTML = `<p class="assistant-msg" style="color: #c62828;">Error: ${message}</p>`;
+}
+
+// Handle URL params
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const feature = urlParams.get('feature');
+    
+    if (feature === 'lesson_plan') {
+        document.querySelector('[data-mode="lesson"]').click();
+    } else if (feature === 'scheme_of_work') {
+        document.querySelector('[data-mode="scheme"]').click();
+    } else if (feature === 'assessment') {
+        document.querySelector('[data-mode="rubric"]').click();
+    }
+});
+</script>
+{% endblock %}

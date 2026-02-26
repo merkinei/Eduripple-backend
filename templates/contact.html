@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Contact{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div class="how-hero-grid">
+            <div>
+                <h1>Get in Touch</h1>
+                <p>We'd love to hear from you! Share feedback, ask questions, or explore partnership opportunities with EduRipple.</p>
+                <div class="how-highlights">
+                    <span class="highlight-chip">✓ Teacher feedback welcome</span>
+                    <span class="highlight-chip">✓ School partnerships</span>
+                    <span class="highlight-chip">✓ Quick response</span>
+                </div>
+            </div>
+            <div class="how-visual" style="max-height: 350px; display: flex; align-items: center; justify-content: center;">
+                <img src="{{ url_for('static', filename='images/teacher-laptop.png') }}" alt="Teacher using a laptop in class" data-fallback="{{ url_for('static', filename='images/kenyan-classroom-writing.jpg') }}" onerror="this.onerror=null;this.src=this.dataset.fallback;" style="max-height: 100%; max-width: 100%; object-fit: contain;" />
+            </div>
+        </div>
+
+        <div class="contact-layout">
+            <form class="contact-form card" method="post" action="{{ url_for('submit_contact') }}">
+                <h2 style="margin-top: 0;">Send us a Message</h2>
+                
+                <label for="name">Full Name *</label>
+                <input id="name" name="name" type="text" placeholder="Your full name" required />
+
+                <label for="email">Email Address *</label>
+                <input id="email" name="email" type="email" placeholder="you@example.com" required />
+
+                <label for="phone">Phone Number (optional)</label>
+                <input id="phone" name="phone" type="tel" placeholder="+254 XXX XXX XXX" />
+
+                <label for="inquiry_type">Inquiry Type *</label>
+                <select id="inquiry_type" name="inquiry_type" required style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.7rem; background: var(--surface); color: var(--text);">
+                    <option value="">Select an option...</option>
+                    <option value="teacher_feedback">Teacher Feedback</option>
+                    <option value="feature_request">Feature Request</option>
+                    <option value="school_partnership">School Partnership</option>
+                    <option value="technical_support">Technical Support</option>
+                    <option value="general_inquiry">General Inquiry</option>
+                </select>
+
+                <label for="school">School/Organization (optional)</label>
+                <input id="school" name="school" type="text" placeholder="Your school or organization name" />
+
+                <label for="message">Message *</label>
+                <textarea id="message" name="message" rows="6" placeholder="Share your feedback, questions, or partnership ideas..." required></textarea>
+
+                <button type="submit" class="btn btn-primary">Send Message</button>
+                <p class="api-note" style="margin-top: 0.6rem;">We typically respond within 24-48 hours.</p>
+            </form>
+
+            <div class="contact-side">
+                <div class="card" style="background: linear-gradient(135deg, var(--surface-muted) 0%, var(--surface) 100%);">
+                    <h2 style="margin-top: 0; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg> Direct Contact</h2>
+                    <div style="margin: 1rem 0;">
+                        <p style="margin: 0.8rem 0;"><strong>Email:</strong> <a href="mailto:hello@eduripple.ai" style="color: var(--primary); text-decoration: none;">hello@eduripple.ai</a></p>
+                        <p style="margin: 0.8rem 0;"><strong>Phone:</strong> <a href="tel:+254712345678" style="color: var(--primary); text-decoration: none;">+254 712 345 678</a></p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 style="margin-top: 0; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg> Connect With Us</h2>
+                    <div style="display: grid; gap: 0.8rem; margin-top: 1rem;">
+                        <p style="margin: 0; display: flex; align-items: center; gap: 0.6rem;">
+                            <i class="fab fa-facebook-f" style="font-size: 1.3rem; color: #1877f2;"></i>
+                            <a href="https://facebook.com/EduRipple" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none;">Facebook: @EduRipple</a>
+                        </p>
+                        <p style="margin: 0; display: flex; align-items: center; gap: 0.6rem;">
+                            <i class="fab fa-x-twitter" style="font-size: 1.3rem; color: #000;"></i>
+                            <a href="https://twitter.com/EduRippleAI" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none;">Twitter/X: @EduRippleAI</a>
+                        </p>
+                        <p style="margin: 0; display: flex; align-items: center; gap: 0.6rem;">
+                            <i class="fab fa-linkedin-in" style="font-size: 1.3rem; color: #0a66c2;"></i>
+                            <a href="https://linkedin.com/company/eduripple" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none;">LinkedIn: EduRipple</a>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 style="margin-top: 0; color: var(--primary);">⏰ Support Hours</h2>
+                    <p><strong>Monday - Friday:</strong> 8:00 AM – 5:00 PM (EAT)</p>
+                    <p><strong>Saturday - Sunday:</strong> Emergency support only</p>
+                    <p class="api-note">We prioritize school partnership inquiries during business hours.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

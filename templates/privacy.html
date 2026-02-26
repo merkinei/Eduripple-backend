@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Privacy Policy{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container narrow" style="max-width: 800px;">
+        <h1>Privacy Policy</h1>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem;"><strong>Last Updated:</strong> 25 February 2026</p>
+
+        <hr style="margin-bottom: 2rem;">
+
+        <h2>1. Introduction</h2>
+        <p>EduRipple ("we", "our", or "the Platform") is committed to protecting the privacy and personal information of its users. This Privacy Policy explains what information we collect, how we use it, how it is protected, and your rights regarding your data when using EduRipple.</p>
+        <p>By using the Platform, you agree to the practices described in this Privacy Policy.</p>
+
+        <h2>2. Information We Collect</h2>
+
+        <h3>Account Information</h3>
+        <p>When you create an account, we may collect:</p>
+        <ul>
+            <li><strong>Full name</strong> — to personalise your experience</li>
+            <li><strong>Email address</strong> — for authentication and communication</li>
+            <li><strong>School name</strong> (optional) — to contextualise educational resources</li>
+            <li><strong>Subject area and grade level</strong> — to tailor content generation</li>
+        </ul>
+
+        <h3>Usage Data</h3>
+        <p>To provide core functionality, we collect:</p>
+        <ul>
+            <li>Prompts submitted to the AI system</li>
+            <li>Generated educational content</li>
+            <li>Interaction history required for downloads and session continuity</li>
+            <li>Session data used to maintain login status</li>
+        </ul>
+
+        <h3>Technical Data</h3>
+        <p>For security and performance purposes, we may collect:</p>
+        <ul>
+            <li>IP address (used for security and rate limiting)</li>
+            <li>Browser type and version</li>
+            <li>Device information</li>
+            <li>Access timestamps and activity logs</li>
+        </ul>
+
+        <h2>3. How We Use Your Data</h2>
+        <p>We use collected information to:</p>
+        <ul>
+            <li>Provide and operate the EduRipple AI teaching assistant</li>
+            <li>Authenticate users and maintain secure sessions</li>
+            <li>Generate personalised lesson plans, schemes of work, and assessment materials</li>
+            <li>Improve AI performance and content quality</li>
+            <li>Monitor, detect, and prevent misuse or security threats</li>
+            <li>Maintain platform reliability and performance</li>
+        </ul>
+
+        <h2>4. Data Storage and Security</h2>
+        <p>We implement reasonable technical and organizational safeguards to protect your data, including:</p>
+        <ul>
+            <li>Password hashing using industry-standard encryption methods</li>
+            <li>Secure servers with restricted access controls</li>
+            <li>HTTPS encryption for all data transmitted through the Platform</li>
+            <li>Secure, HTTP-only session cookies in production environments</li>
+        </ul>
+        <p>While we take strong precautions, no internet service can guarantee absolute security.</p>
+
+        <h2>5. Third-Party Services</h2>
+        <p>EduRipple uses third-party artificial intelligence providers to generate content.</p>
+        <p>When you submit a prompt:</p>
+        <ul>
+            <li>Prompt text may be transmitted to AI service providers (such as Google Gemini or OpenRouter) for processing.</li>
+            <li>These providers operate under their own privacy policies.</li>
+            <li>EduRipple does <strong>not</strong> share your personal account identity (such as name or email) with AI providers.</li>
+        </ul>
+        <p>We only share the minimum data necessary to deliver AI functionality.</p>
+
+        <h2>6. Data Sharing</h2>
+        <p>We do <strong>not</strong> sell, rent, or trade your personal data.</p>
+        <p>We may share information only when necessary:</p>
+        <ul>
+            <li>With your explicit consent</li>
+            <li>To comply with legal obligations under applicable law</li>
+            <li>To protect the security, integrity, or safety of the Platform and its users</li>
+            <li>During business transfers such as mergers or restructuring (if applicable)</li>
+        </ul>
+
+        <h2>7. Data Retention</h2>
+        <ul>
+            <li>Account information is retained while your account remains active.</li>
+            <li>Generated content may be stored temporarily to support history and downloads.</li>
+            <li>Older generated data may be periodically removed to improve system performance.</li>
+            <li>Users may request deletion of their data at any time.</li>
+        </ul>
+
+        <h2>8. Your Rights</h2>
+        <p>Subject to applicable law, you have the right to:</p>
+        <ul>
+            <li><strong>Access</strong> personal data we hold about you</li>
+            <li><strong>Correct</strong> inaccurate or incomplete information</li>
+            <li><strong>Request deletion</strong> of your account and associated data</li>
+            <li><strong>Request export</strong> of your data in a readable format</li>
+            <li><strong>Withdraw consent</strong> where processing is based on consent</li>
+        </ul>
+        <p>Requests may be submitted using the contact information below.</p>
+
+        <h2>9. Children's Privacy</h2>
+        <p>EduRipple is designed for educators and is not intended for individuals under 18 years of age. We do not knowingly collect personal data from children.</p>
+        <p>If we become aware that data from a minor has been collected unintentionally, we will take steps to delete it promptly.</p>
+
+        <h2>10. Cookies</h2>
+        <p>EduRipple uses only essential cookies required for platform functionality, including:</p>
+        <ul>
+            <li>Session management (keeping users logged in)</li>
+            <li>Security protection (including CSRF prevention)</li>
+        </ul>
+        <p>We do not use advertising or behavioral tracking cookies.</p>
+
+        <h2>11. Changes to This Privacy Policy</h2>
+        <p>We may update this Privacy Policy periodically to reflect improvements or legal requirements. Updated versions will be posted on the Platform with a revised "Last Updated" date.</p>
+        <p>Significant changes may be communicated via email or platform notification.</p>
+
+        <h2>12. Contact Us</h2>
+        <p>For privacy-related questions or to exercise your data rights, contact us at:</p>
+        <p><strong>Email:</strong> <a href="mailto:privacy@eduripple.com">privacy@eduripple.com</a><br>
+        <strong>Website:</strong> <a href="{{ url_for('contact') }}">eduripple.com/contact</a></p>
+
+        <hr style="margin-top: 2rem;">
+        <p style="color: var(--text-secondary); font-style: italic;">End of Privacy Policy</p>
+    </div>
+</section>
+{% endblock %}

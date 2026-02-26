@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Teacher Sign Up{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container narrow">
+        <div class="card auth-card">
+            <h1>Create Teacher Account</h1>
+            <p>Sign up to access the CBC AI assistant and generate documents.</p>
+            <form method="post" class="auth-form" id="signupForm">
+                <label for="full_name">Full Name</label>
+                <input id="full_name" name="full_name" type="text" required value="{{ full_name or '' }}" placeholder="Enter your full name" />
+
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" required value="{{ email or '' }}" placeholder="Enter your email" />
+
+                <label for="school">School (optional)</label>
+                <input id="school" name="school" type="text" value="{{ school or '' }}" placeholder="Your school name" />
+                
+                <label for="subject_area">Subject Area (optional)</label>
+                <input id="subject_area" name="subject_area" type="text" value="{{ subject_area or '' }}" placeholder="e.g., Mathematics, English, Science" />
+
+                <label for="grade_level">Grade Levels You Teach (optional)</label>
+                <input id="grade_level" name="grade_level" type="text" value="{{ grade_level or '' }}" placeholder="e.g., Grade 7-9" />
+                
+                <label for="years_experience">Years of Teaching Experience (optional)</label>
+                <input id="years_experience" name="years_experience" type="number" min="0" max="60" value="{{ years_experience or '' }}" placeholder="e.g., 5" />
+
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" minlength="8" required placeholder="Min 8 characters with uppercase & number" />
+
+                <label for="confirm_password">Confirm Password</label>
+                <input id="confirm_password" name="confirm_password" type="password" minlength="8" required placeholder="Confirm password" />
+                <small id="passwordMatch" style="color: var(--muted); font-size: 0.85rem; margin-top: -0.6rem;"></small>
+
+                <div style="display: flex; align-items: flex-start; gap: 0.5rem; margin: 1rem 0;">
+                    <input type="checkbox" id="agree_terms" name="agree_terms" required style="margin-top: 0.25rem; width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);" />
+                    <label for="agree_terms" style="font-size: 0.9rem; line-height: 1.4; cursor: pointer;">
+                        I agree to the <a href="{{ url_for('terms') }}" target="_blank" style="color: var(--primary); text-decoration: underline;">Terms of Service</a>
+                        and <a href="{{ url_for('privacy') }}" target="_blank" style="color: var(--primary); text-decoration: underline;">Privacy Policy</a>.
+                    </label>
+                </div>
+                <small id="termsError" style="color: #ef4444; font-size: 0.85rem; display: none; margin-top: -0.6rem;">You must accept the Terms of Service and Privacy Policy.</small>
+
+                <button type="submit" class="btn btn-primary">Create Account</button>
+            </form>
+            <script>
+                const passwordInput = document.getElementById('password');
+                const confirmInput = document.getElementById('confirm_password');
+                const matchMsg = document.getElementById('passwordMatch');
+                const signupForm = document.getElementById('signupForm');
+                
+                function checkPasswordMatch() {
+                    if (confirmInput.value && passwordInput.value !== confirmInput.value) {
+                        matchMsg.textContent = '✗ Passwords do not match';
+                        matchMsg.style.color = '#ef4444';
+                        confirmInput.style.borderColor = '#ef4444';
+                    } else if (confirmInput.value) {
+                        matchMsg.textContent = '✓ Passwords match';
+                        matchMsg.style.color = '#22c55e';
+                        confirmInput.style.borderColor = '#22c55e';
+                    } else {
+                        matchMsg.textContent = '';
+                        confirmInput.style.borderColor = '';
+                    }
+                }
+                
+                passwordInput.addEventListener('input', checkPasswordMatch);
+                confirmInput.addEventListener('input', checkPasswordMatch);
+                
+                const agreeTerms = document.getElementById('agree_terms');
+                const termsError = document.getElementById('termsError');
+
+                agreeTerms.addEventListener('change', () => {
+                    termsError.style.display = 'none';
+                });
+
+                signupForm.addEventListener('submit', (e) => {
+                    if (passwordInput.value !== confirmInput.value) {
+                        e.preventDefault();
+                        alert('Passwords do not match');
+                        return;
+                    }
+                    if (!agreeTerms.checked) {
+                        e.preventDefault();
+                        termsError.style.display = 'block';
+                    }
+                });
+            </script>
+            <p class="api-note">Already have an account? <a href="{{ url_for('teacher_signin') }}">Sign in</a>.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

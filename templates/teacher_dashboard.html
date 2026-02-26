@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Teacher Dashboard{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h1>Teacher Dashboard</h1>
+        <p>Welcome back, {{ teacher_name }}. Start from AI tools or access your latest generated files.</p>
+
+        <div class="grid cards-3" style="margin-top: 1rem;">
+            <article class="card" style="text-align: center;">
+                <div style="font-size: 2.5rem; color: var(--primary); font-weight: bold; margin-bottom: 0.5rem;">{{ total_files }}</div>
+                <h3 style="margin: 0; font-size: 1rem;">Documents Generated</h3>
+                <p style="margin: 0.3rem 0 0; font-size: 0.9rem;">Total resources created</p>
+            </article>
+
+            <article class="card" style="text-align: center;">
+                <div style="font-size: 2.5rem; color: var(--primary); font-weight: bold; margin-bottom: 0.5rem;">📚</div>
+                <h3 style="margin: 0; font-size: 1rem;">Quick Access</h3>
+                <p style="margin: 0.3rem 0 0; font-size: 0.9rem;">Lesson tools ready</p>
+            </article>
+
+            <article class="card" style="text-align: center;">
+                <div style="font-size: 1.2rem; color: var(--muted); font-weight: normal; margin-bottom: 0.5rem;">{{ last_generated or "No activity yet" }}</div>
+                <h3 style="margin: 0; font-size: 1rem;">Last Generated</h3>
+                <p style="margin: 0.3rem 0 0; font-size: 0.9rem;">Most recent file</p>
+            </article>
+        </div>
+
+        <div class="grid cards-2" style="margin-top: 1.5rem;">
+            <article class="card">
+                <h2 style="margin-bottom: 0.4rem;">AI Assistant</h2>
+                <p>Generate lesson plans, schemes of work, assessments, and learning resources.</p>
+                <a class="btn btn-primary" href="{{ url_for('ai_chat') }}">Open AI Chat</a>
+            </article>
+
+            <article class="card">
+                <h2 style="margin-bottom: 0.4rem;">Manage Resources</h2>
+                <p>View, search, and organize all your generated documents.</p>
+                <a class="btn btn-primary" href="{{ url_for('teacher_resources') }}">Go to Resources</a>
+            </article>
+
+            <article class="card">
+                <h2 style="margin-bottom: 0.4rem;">Quick Links</h2>
+                <p>Browse learning materials and platform guides.</p>
+                <div class="cta-row">
+                    <a class="btn btn-secondary" href="{{ url_for('library') }}">Library</a>
+                    <a class="btn btn-secondary" href="{{ url_for('how_it_works') }}">How It Works</a>
+                </div>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="section muted">
+    <div class="container">
+        <h2>Recent Generated Files</h2>
+        {% if recent_files %}
+        <div class="card">
+            <ul class="resources-list">
+                {% for file in recent_files %}
+                <li>
+                    <a href="{{ file.url }}" target="_blank" rel="noopener">{{ file.name }}</a>
+                    <span class="api-note">(updated {{ file.modified }})</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <div class="card">
+            <p>No generated files yet. Use the AI assistant to create your first lesson document.</p>
+            <a class="btn btn-primary" href="{{ url_for('ai_chat') }}">Create First Document</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
