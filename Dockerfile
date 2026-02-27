@@ -45,9 +45,9 @@ ENV PORT=5000
 # Expose port (Railway overrides this)
 EXPOSE ${PORT}
 
-# Initialize curriculum.db and copy as seed (DATA_DIR=/app at build time)
+# curriculum.db is committed to git with 33 CBC entries.
+# init_curriculum_db() uses CREATE TABLE IF NOT EXISTS so it won't overwrite data.
 RUN python -c "from curriculum_db import init_curriculum_db; init_curriculum_db()" || true
-RUN cp /app/curriculum.db /app/seed_curriculum.db 2>/dev/null || true
 
 # Use shell form so $PORT is expanded at runtime.
 # init_data.py seeds the persistent volume on first boot, then gunicorn starts.

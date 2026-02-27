@@ -39,6 +39,8 @@ wheels/
 
 # Database
 *.db
+# Exception: curriculum.db contains CBC seed data needed for deployment
+!curriculum.db
 *.sqlite
 *.sqlite3
 
