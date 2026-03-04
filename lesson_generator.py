@@ -742,29 +742,28 @@ def generate_scheme_of_work(subject, grade, term="1"):
     outcome_groups = _group_outcomes_into_substrands(learning_outcomes)
     experience_groups = _group_experiences_into_substrands(experiences)
     
-    # Determine total lessons from strand text
-    total_lessons = _extract_lesson_count(strand)
-    if total_lessons == 0:
-        content_items = len(learning_outcomes) + len(experiences)
-        if content_items >= 12:
-            total_lessons = max(3, min(12, content_items // 3))
-        elif content_items >= 6:
-            total_lessons = max(2, content_items // 3)
-        else:
-            total_lessons = max(len(outcome_groups), 1)
-    
-    # Grade-based lesson duration
+    # Grade-based lesson duration and lessons per week
     grade_num = int(re.search(r'\d+', grade).group()) if re.search(r'\d+', grade) else 7
     lesson_duration = 35 if grade_num <= 6 else 40
-    
-    # Determine lessons per week (CBC typically 3-5 lessons per subject per week)
     lessons_per_week = 3 if grade_num <= 6 else 2
-    num_weeks = max(1, math.ceil(total_lessons / lessons_per_week))
-    num_weeks = min(num_weeks, 13)  # Cap at 13 weeks per term
     
-    # Recalculate total lessons if we capped weeks
-    if num_weeks * lessons_per_week < total_lessons:
-        lessons_per_week = math.ceil(total_lessons / num_weeks)
+    # A Kenyan school term is typically 12-14 weeks
+    # Set minimum 12 weeks for a complete term scheme of work
+    MIN_TERM_WEEKS = 12
+    MAX_TERM_WEEKS = 14
+    
+    # Determine total lessons from strand text (if specified)
+    extracted_lessons = _extract_lesson_count(strand)
+    
+    # Calculate weeks based on extracted lessons or default to full term
+    if extracted_lessons > 0:
+        num_weeks = max(MIN_TERM_WEEKS, math.ceil(extracted_lessons / lessons_per_week))
+        num_weeks = min(num_weeks, MAX_TERM_WEEKS)
+        total_lessons = num_weeks * lessons_per_week
+    else:
+        # Default to full 12-week term
+        num_weeks = MIN_TERM_WEEKS
+        total_lessons = num_weeks * lessons_per_week
     
     strand_topic = _extract_strand_topic(strand) or subject
     
