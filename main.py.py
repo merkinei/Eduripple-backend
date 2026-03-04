@@ -752,6 +752,7 @@ def as_printable_html(text):
     escaped_lines = [html.escape(line) for line in (text or "").split("\n")]
     parts = []
     i = 0
+    has_wide_table = False
 
     def parse_cells(row):
         stripped = row.strip()
@@ -772,6 +773,9 @@ def as_printable_html(text):
 
         if is_table_header:
             header_cells = parse_cells(line)
+            # Detect wide tables (scheme of work has 10+ columns)
+            if len(header_cells) >= 8:
+                has_wide_table = True
             table_rows = []
             i += 2
             while i < len(escaped_lines) and "|" in escaped_lines[i]:
@@ -788,7 +792,7 @@ def as_printable_html(text):
                 tbody_html += f"<tr>{row_html}</tr>"
 
             parts.append(
-                "<table style='width:100%; border-collapse:collapse; margin:12px 0;'>"
+                "<table class='content-table'>"
                 f"<thead><tr>{thead_html}</tr></thead>"
                 f"<tbody>{tbody_html}</tbody>"
                 "</table>"
@@ -802,17 +806,59 @@ def as_printable_html(text):
         i += 1
 
     rendered = "".join(parts)
+    
+    # Use landscape orientation for wide tables (scheme of work)
+    page_size = "@page { size: A4 landscape; margin: 10mm; }" if has_wide_table else "@page { size: A4; margin: 15mm; }"
+    font_size = "8pt" if has_wide_table else "11pt"
+    
     return f"""
     <html>
       <head>
         <meta charset=\"utf-8\" />
         <style>
-          body {{ font-family: Arial, sans-serif; padding: 24px; line-height: 1.5; }}
-          h1, h2, h3 {{ color: #17325f; }}
-          hr {{ border: none; border-top: 1px solid #d0d7e5; margin: 16px 0; }}
-          table, th, td {{ border: 1px solid #d0d7e5; }}
-          th, td {{ padding: 8px; text-align: left; vertical-align: top; }}
-          th {{ background: #eef3ff; }}
+          {page_size}
+          body {{ 
+            font-family: Arial, sans-serif; 
+            padding: 10px; 
+            line-height: 1.3; 
+            font-size: {font_size};
+          }}
+          h1, h2, h3 {{ color: #17325f; margin: 8px 0; }}
+          hr {{ border: none; border-top: 1px solid #d0d7e5; margin: 10px 0; }}
+          .content-table {{ 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 8px 0;
+            table-layout: fixed;
+          }}
+          .content-table th, .content-table td {{ 
+            border: 1px solid #d0d7e5; 
+            padding: 4px 3px; 
+            text-align: left; 
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            font-size: {font_size};
+          }}
+          .content-table th {{ 
+            background: #eef3ff; 
+            font-weight: bold;
+            font-size: 7pt;
+          }}
+          /* Column width distribution for scheme of work tables */
+          .content-table th:nth-child(1), .content-table td:nth-child(1) {{ width: 3%; }} /* Week */
+          .content-table th:nth-child(2), .content-table td:nth-child(2) {{ width: 4%; }} /* Lesson */
+          .content-table th:nth-child(3), .content-table td:nth-child(3) {{ width: 8%; }} /* Strand */
+          .content-table th:nth-child(4), .content-table td:nth-child(4) {{ width: 8%; }} /* Sub-strand */
+          .content-table th:nth-child(5), .content-table td:nth-child(5) {{ width: 14%; }} /* Outcomes */
+          .content-table th:nth-child(6), .content-table td:nth-child(6) {{ width: 14%; }} /* Experiences */
+          .content-table th:nth-child(7), .content-table td:nth-child(7) {{ width: 12%; }} /* Questions */
+          .content-table th:nth-child(8), .content-table td:nth-child(8) {{ width: 8%; }} /* Resources */
+          .content-table th:nth-child(9), .content-table td:nth-child(9) {{ width: 7%; }} /* Assessment */
+          .content-table th:nth-child(10), .content-table td:nth-child(10) {{ width: 8%; }} /* Competencies */
+          .content-table th:nth-child(11), .content-table td:nth-child(11) {{ width: 6%; }} /* Values */
+          .content-table th:nth-child(12), .content-table td:nth-child(12) {{ width: 5%; }} /* PCIs */
+          .content-table th:nth-child(13), .content-table td:nth-child(13) {{ width: 3%; }} /* Remarks */
         </style>
       </head>
       <body>{rendered}</body>
@@ -1195,6 +1241,7 @@ def teacher_signup():
 
     create_teacher(full_name, email, school, password, subject_area, grade_level, years_exp_int)
     teacher = get_teacher_by_email(email)
+    session.permanent = True  # Keep session for 7 days (PERMANENT_SESSION_LIFETIME)
     session["teacher_id"] = teacher["id"]
     session["teacher_name"] = teacher["full_name"]
     session["teacher_email"] = teacher["email"]
@@ -1217,6 +1264,7 @@ def teacher_signin():
         flash("Invalid email or password.", "error")
         return render_template("teacher_signin.html", email=email), 401
 
+    session.permanent = True  # Keep session for 7 days (PERMANENT_SESSION_LIFETIME)
     session["teacher_id"] = teacher["id"]
     session["teacher_name"] = teacher["full_name"]
     session["teacher_email"] = teacher["email"]

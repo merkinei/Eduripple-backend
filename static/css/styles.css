@@ -179,12 +179,16 @@ main {
 .account-toggle {
     border: 1px solid var(--border);
     background: var(--surface-muted);
-    color: var(--text);
-    border-radius: 0.5rem;
-    padding: 0.5rem 0.75rem;
+    color: var(--primary);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     line-height: 1;
-    font-size: 1.1rem;
+    font-size: 1.25rem;
 }
 
 .account-menu {
