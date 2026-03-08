@@ -2207,7 +2207,29 @@ def cbc_assistant():
             result = generate_scheme_of_work(subject_match or "Mathematics", grade_match or "Grade 7", term)
             answer = result["content"] if result["success"] else f"Error: {result['error']}"
         elif intent == "assessment_rubric":
-            result = generate_rubric(subject_match or "Science", grade_match or "Grade 7", "performance")
+            # Extract topic hint for best sub-strand matching
+            # Prefer explicit sub-strand hint, then look for 'on X' / 'about X' in prompt
+            _rubric_topic = substrand_hint
+            if not _rubric_topic:
+                _m = re.search(
+                    r'\bon\s+([\w\s:\-/,]+?)(?:\s+for\s|\s+in\s+grade|\s+grade|\s*$)',
+                    prompt, re.IGNORECASE
+                )
+                if _m:
+                    _rubric_topic = re.sub(r'[:\-]', ' ', _m.group(1)).strip()
+                else:
+                    _m2 = re.search(
+                        r'\babout\s+([\w\s]+?)(?:\s+for\s|\s+grade|\s*$)',
+                        prompt, re.IGNORECASE
+                    )
+                    if _m2:
+                        _rubric_topic = _m2.group(1).strip()
+            result = generate_rubric(
+                subject_match or "Science",
+                grade_match or "Grade 7",
+                "performance",
+                topic=_rubric_topic or None,
+            )
             answer = result["content"] if result["success"] else f"Error: {result['error']}"
         else:
             # For general queries, use database to provide context
@@ -2235,29 +2257,33 @@ Suggested Learning Experiences:
 {chr(10).join([f'- {e}' for e in experiences])}
 """
 
+        # Append media/website resources only for conversational responses,
+        # NOT for formatted document outputs (rubric / scheme of work / lesson plan)
+        _is_document_output = intent in ("assessment_rubric", "scheme_of_work", "lesson_plan")
+
         # Add YouTube videos to all responses
-        if curated_resources["videos"]:
+        if curated_resources["videos"] and not _is_document_output:
             video_section = "\n\n📺 RECOMMENDED YOUTUBE VIDEOS:\n"
             for v in curated_resources["videos"][:5]:
                 video_section += f"• {v['title']}\n  Channel: {v['channel']}\n  Watch: {v['url']}\n\n"
             answer += video_section
         
         # Add curated websites
-        if curated_resources["websites"]:
+        if curated_resources["websites"] and not _is_document_output:
             website_section = "\n🌐 EDUCATIONAL WEBSITES:\n"
             for w in curated_resources["websites"]:
                 website_section += f"• {w['title']}: {w['url']}\n  {w['description']}\n\n"
             answer += website_section
         
         # Add audio resources
-        if curated_resources["audio"]:
+        if curated_resources["audio"] and not _is_document_output:
             audio_section = "\n🎧 AUDIO RESOURCES:\n"
             for a in curated_resources["audio"]:
                 audio_section += f"• {a['title']} ({a['type']})\n  {a['url']}\n  {a['description']}\n\n"
             answer += audio_section
         
         # Add visual resources
-        if curated_resources["visual"]:
+        if curated_resources["visual"] and not _is_document_output:
             visual_section = "\n🖼️ VISUAL & PRINTABLE RESOURCES:\n"
             for v in curated_resources["visual"]:
                 visual_section += f"• {v['title']} ({v['type']})\n  {v['url']}\n  {v['description']}\n\n"

@@ -55,16 +55,18 @@ def _filter_to_approved_values(raw_list):
 
 
 def query_curriculum(subject, grade, substrand_hint=None):
-    """Query curriculum database for subject and grade."""
+    """Query curriculum database for subject and grade.
+    Returns the best-matching entry (by substrand_hint if provided,
+    otherwise the first match). Never returns on the first loop —
+    always collects ALL matches first."""
     # Normalize grade
     grade_normalized = f"Grade {grade}" if grade and not grade.startswith("Grade") else grade
-    
+
     all_curriculum = get_curriculum()
-    
     if not all_curriculum:
         return None
-    
-    # Map common subject name variations to actual DB subject names (with spaces, as stored)
+
+    # Map common subject name variations to actual DB subject names
     subject_map = {
         "mathematics": "maths",
         "math": "maths",
@@ -76,7 +78,7 @@ def query_curriculum(subject, grade, substrand_hint=None):
         "creative arts and sports": "creative arts and sports",
         "agriculture": "agriculture and nutrition",
         "agriculture and nutrition": "agriculture and nutrition",
-        "agriculture and nutrion": "agriculture and nutrion",  # DB typo for Grade 8
+        "agriculture and nutrion": "agriculture and nutrion",  # DB typo Grade 8
         "pre-technical studies": "pre technical studies",
         "pre technical studies": "pre technical studies",
         "indigenous languages": "indigenious languages",
@@ -87,33 +89,103 @@ def query_curriculum(subject, grade, substrand_hint=None):
         "ire": "ire",
         "islamic religious education": "ire",
     }
-    
+
     subject_normalized = subject.lower()
     if subject_normalized in subject_map:
         subject_normalized = subject_map[subject_normalized]
-    
-    # Try exact match (with underscores)
     subject_with_underscore = subject_normalized.replace(" ", "_")
-    for entry in all_curriculum:
-        if (entry['subject'].lower() == subject_with_underscore and 
-            entry['grade'].lower() == grade_normalized.lower()):
-            return entry
-    
-    # Try without underscores
-    for entry in all_curriculum:
-        if (entry['subject'].lower().replace("_", " ") == subject_normalized and 
-            entry['grade'].lower() == grade_normalized.lower()):
-            return entry
-    
-    # Try partial match (checks if subject keywords are in database subject)
+    grade_lower = grade_normalized.lower()
+
+    # Collect ALL entries that match subject + grade
+    matches = []
     for entry in all_curriculum:
         entry_subject = entry['subject'].lower().replace("_", " ")
-        # Check if any key words match
-        if (any(word in entry_subject for word in subject_normalized.split()) and
-            entry['grade'].lower() == grade_normalized.lower()):
-            return entry
+        entry_grade = entry['grade'].lower()
+        subject_match = (
+            entry_subject == subject_normalized
+            or entry['subject'].lower() == subject_with_underscore
+            or any(w in entry_subject for w in subject_normalized.split() if len(w) > 3)
+        )
+        if subject_match and entry_grade == grade_lower:
+            matches.append(entry)
 
-    return None
+    if not matches:
+        return None
+
+    # If a substrand hint is given, return the best-matching entry
+    if substrand_hint:
+        return _find_best_curriculum_entry(matches, substrand_hint)
+    return matches[0]
+
+
+def _get_all_matching_entries(subject, grade):
+    """Return ALL curriculum entries for a subject+grade using the same fuzzy
+    normalization as query_curriculum().  Used by generate_scheme_of_work()."""
+    grade_normalized = f"Grade {grade}" if grade and not grade.startswith("Grade") else grade
+    all_curriculum = get_curriculum()
+    if not all_curriculum:
+        return []
+
+    subject_map = {
+        "mathematics": "maths", "math": "maths",
+        "science": "intergrated science",
+        "integrated science": "intergrated science",
+        "intergrated science": "intergrated science",
+        "social studies": "social studies",
+        "creative arts": "creative arts",
+        "creative arts and sports": "creative arts and sports",
+        "agriculture": "agriculture and nutrition",
+        "agriculture and nutrition": "agriculture and nutrition",
+        "agriculture and nutrion": "agriculture and nutrion",
+        "pre-technical studies": "pre technical studies",
+        "pre technical studies": "pre technical studies",
+        "indigenous languages": "indigenious languages",
+        "indigenous language": "indigenious languages",
+        "indigenious languages": "indigenious languages",
+        "cre": "cre",
+        "christian religious education": "cre",
+        "ire": "ire",
+        "islamic religious education": "ire",
+    }
+
+    subject_normalized = subject.lower()
+    if subject_normalized in subject_map:
+        subject_normalized = subject_map[subject_normalized]
+    subject_with_underscore = subject_normalized.replace(" ", "_")
+    grade_lower = grade_normalized.lower()
+
+    matches = []
+    for entry in all_curriculum:
+        entry_subject = entry['subject'].lower().replace("_", " ")
+        entry_grade   = entry['grade'].lower()
+        subject_match = (
+            entry_subject == subject_normalized
+            or entry['subject'].lower() == subject_with_underscore
+            or any(w in entry_subject for w in subject_normalized.split() if len(w) > 3)
+        )
+        if subject_match and entry_grade == grade_lower:
+            matches.append(entry)
+    return matches
+
+
+def _combine_substrand(num, name):
+    """Combine substrand_number + substrand name, avoiding double prefixes.
+
+    DB quirk: some subjects store the section number in substrand_number ('4.2')
+    and the sub-section fragment in substrand name ('.1 Intensive Reading').
+    In that case join them as '4.2.1 Intensive Reading' (no extra space before dot).
+    """
+    num = (num or '').strip()
+    name = (name or '').strip()
+    if not num:
+        return name
+    # If the name starts with a dot-fragment like '.1 ...' combine directly onto num
+    if name.startswith('.'):
+        return f"{num}{name}"
+    # If name already starts with the same numeric prefix, don't duplicate
+    if name.startswith(num):
+        return name
+    return f"{num} {name}".strip()
 
 
 def _find_best_curriculum_entry(all_entries, substrand_hint):
@@ -123,15 +195,109 @@ def _find_best_curriculum_entry(all_entries, substrand_hint):
         return None
     if not substrand_hint:
         return all_entries[0]
+
+    # Synonym expansion: CBC topic words → related DB keywords
+    _SYNONYMS: dict[str, list[str]] = {
+        'play':           ['drama', 'story', 'reader', 'oral', 'narrative', 'literature'],
+        'drama':          ['play', 'oral', 'narrative', 'literature', 'reader'],
+        'poem':           ['poetry', 'poem', 'oral', 'literature'],
+        'character':      ['character'],
+        'comprehension':  ['reading', 'intensive', 'extensive', 'information'],
+        'composition':    ['writing', 'creative', 'narrative', 'composition'],
+        'grammar':        ['grammar', 'verb', 'tense', 'word', 'sentence'],
+        'fraction':       ['fraction', 'number', 'ratio', 'proportion'],
+        'algebra':        ['algebra', 'expression', 'equation', 'algebraic'],
+        'geometry':       ['geometry', 'shape', 'angle', 'triangle', 'circle'],
+        'crop':           ['crop', 'plant', 'soil', 'farm', 'agriculture'],
+        'animal':         ['animal', 'livestock', 'poultry', 'pest'],
+    }
+
     hint_lower = substrand_hint.lower()
     hint_words = [w for w in hint_lower.split() if len(w) > 3]
+
+    # Expand hints with synonyms
+    expanded_words = list(hint_words)
+    for hw in hint_words:
+        for key, syns in _SYNONYMS.items():
+            if hw.startswith(key[:4]):
+                expanded_words.extend(syns)
+        # Add stem (first 6 chars) for fuzzy prefix matching
+        if len(hw) > 6:
+            expanded_words.append(hw[:6])
+
     best, best_score = all_entries[0], 0
     for entry in all_entries:
         sub = entry.get('substrand', '').lower()
-        score = sum(1 for w in hint_words if w in sub)
+        # Exact word containment + stem prefix match
+        score = sum(
+            1 for w in expanded_words
+            if w in sub or any(sw.startswith(w[:6]) for sw in sub.split() if len(sw) > 4)
+        )
         if score > best_score:
             best, best_score = entry, score
     return best
+
+
+def _clean_slo(text):
+    """Strip PDF-parser preamble headers that leaked into SLO text."""
+    # Partial fragment: 'By the end of the sub' (split across list items by PDF parser)
+    t = re.sub(
+        r'^by\s+the\s+end\s+of\s+the\s+sub[-\s]*$',
+        '', text, flags=re.IGNORECASE
+    ).strip()
+    # Partial fragment with hyphenated 'sub-strand': 'By the end of the-sub strand'
+    t = re.sub(
+        r'^by\s+the\s+end\s+of\s+the[-\s]+sub[-\s]*strand[^:]*:?\s*',
+        '', t, flags=re.IGNORECASE
+    ).strip()
+    # Full preamble: 'By the end of the sub-strand / sub strand ...'
+    t = re.sub(
+        r'^by\s+the\s+end\s+of\s+the\s+sub[\s\-]*strand[^:]*:?\s*',
+        '', t, flags=re.IGNORECASE
+    ).strip()
+    t = re.sub(
+        r'^by\s+the\s+end\s+of\s+the\s+strand[^:]*:?\s*',
+        '', t, flags=re.IGNORECASE
+    ).strip()
+    # Any remaining 'By the end of the...' catch-all
+    t = re.sub(
+        r'^by\s+the\s+end\s+of\s+the\s+\S+\s*[,.]?\s*',
+        '', t, flags=re.IGNORECASE
+    ).strip()
+    t = re.sub(
+        r'^the\s+learner\s+should\s+be\s+able\s+to\s*:?\s*',
+        '', t, flags=re.IGNORECASE
+    ).strip()
+    # Continuation fragment: 'strand, the learner should be able to:'
+    t = re.sub(
+        r'^strand[,\s]+the\s+learner\s+should\s+be\s+able\s+to\s*:?\s*',
+        '', t, flags=re.IGNORECASE
+    ).strip()
+    t = re.sub(
+        r'^learner\s+should\s+be\s+able\s+to\s*:?\s*',
+        '', t, flags=re.IGNORECASE
+    ).strip()
+    # Strip leading punctuation artifacts left after stripping preamble
+    return t.lstrip(':;,. ').strip()
+
+
+# Matches items that clearly end mid-thought (truncated PDF extraction)
+_SLO_ENDS_INCOMPLETE = re.compile(
+    r'\b(of|a|an|the|in|on|to|by|from|for|and|or|but)\s*$', re.IGNORECASE
+)
+_SLO_HYPHEN_ARTIFACT = re.compile(r'\bto-day\b', re.IGNORECASE)
+
+
+def _is_valid_slo(text):
+    """Return True if the SLO text is a genuine, complete outcome statement."""
+    t = text.strip()
+    if len(t) < 15:
+        return False
+    if _SLO_ENDS_INCOMPLETE.search(t):
+        return False
+    if _SLO_HYPHEN_ARTIFACT.search(t):
+        return False
+    return True
 
 
 def _extract_lesson_count(strand_text):
@@ -484,6 +650,11 @@ def _generate_cross_links(subject, strand, substrand, topic, links_raw):
             'Mathematics — reading maps, graphs and statistical data',
             'English — research skills and structured report writing',
         ]),
+        (['cre', 'christian', 'leisure', 'faith', 'ire', 'islamic', 'religion', 'moral', 'religious'], [
+            'Social Studies — civic responsibility, community values and ethical decision-making',
+            'English — reading religious texts; written reflection and structured oral expression',
+            'Health Education — responsible lifestyle choices and their impact on personal wellbeing',
+        ]),
     ]
 
     result = []
@@ -507,7 +678,15 @@ def _supplement_competencies(approved, subject, topic, minimum=3):
 
     combined = (subject + ' ' + (topic or '')).lower()
 
-    if any(k in combined for k in ['soil', 'farm', 'crop', 'conserv', 'agri', 'water', 'poultry', 'livestock']):
+    if any(k in combined for k in ['cre', 'ire', 'christian', 'islamic', 'religion', 'moral',
+                                        'faith', 'christian living', 'leisure', 'bible', 'quran']):
+        pool = [
+            'Critical Thinking and Problem Solving — evaluating moral dilemmas and forming faith-based ethical judgements',
+            'Communication and Collaboration — respectfully sharing personal values and faith perspectives in group discussion',
+            'Self-Efficacy — applying Christian/moral values confidently in personal decision-making',
+            'Citizenship — contributing positively to community through values-based action',
+        ]
+    elif any(k in combined for k in ['soil', 'farm', 'crop', 'conserv', 'agri', 'water', 'poultry', 'livestock']):
         pool = [
             'Critical Thinking and Problem Solving — evaluating different soil and land conservation methods',
             'Communication and Collaboration — presenting group project findings to the class',
@@ -521,12 +700,14 @@ def _supplement_competencies(approved, subject, topic, minimum=3):
             'Digital Literacy — using calculators and technology in mathematical computation',
             'Learning to Learn — developing personal strategies for problem solving',
         ]
-    elif any(k in combined for k in ['reading', 'writing', 'english', 'language', 'grammar', 'comprehension']):
+    elif any(k in combined for k in ['reading', 'writing', 'english', 'language', 'grammar', 'comprehension',
+                                        'character', 'story', 'narrative', 'poem', 'poetry', 'oral',
+                                        'literature', 'drama', 'play', 'class reader', 'reader']):
         pool = [
-            'Communication and Collaboration — expressing ideas clearly in speech and writing',
-            'Critical Thinking and Problem Solving — analysing and drawing meaning from texts',
-            'Creativity and Imagination — creative writing and storytelling',
-            'Digital Literacy — using digital platforms for reading, writing and research',
+            'Communication and Collaboration — expressing ideas clearly in speech and written analysis',
+            'Critical Thinking and Problem Solving — analysing character motivation, plot and narrative techniques',
+            'Creativity and Imagination — creative writing and imaginative response to literary texts',
+            'Digital Literacy — using digital platforms for reading, writing and literary research',
         ]
     elif any(k in combined for k in ['science', 'biology', 'chemistry', 'physics', 'ecosystem', 'cell']):
         pool = [
@@ -606,11 +787,36 @@ def _generate_step_learner_mirror(step_text, topic):
     if re.search(r'write\s+a|compose\s+a|draft\s+a', tl):
         return "Write the required piece independently; peer-edit for clarity and correctness"
 
-    # Fallback: derive first verb phrase from step text
-    action = re.match(r'^([A-Z][a-z]+(?:\s+[a-z]+){0,4})', text)
-    if action:
-        return f"Participate by {action.group(1).lower()}; record findings and share outcomes with peers"
-    return "Actively engage with the activity; record findings and discuss outcomes with the class"
+    # Stub-step defaults generated when DB experiences is empty
+    if re.search(r'\bintroduce\s+key\s+concepts\b|\bintroduction\s+to\b', tl):
+        return f"Share prior knowledge of {topic}; listen to the introduction and write down three key points in exercise book"
+
+    if re.search(r'\bexplore\b.{0,30}\bhands[- ]on\b|\bexplore\b.{0,30}\bgroup\s+work\b', tl):
+        return f"Take part in hands-on activities exploring {topic}; record observations and share findings with the group"
+
+    if re.search(r'\bconsolidat\b', tl):
+        return f"Complete the practice exercises on {topic} independently; check answers with a partner and correct any errors"
+
+    # Fallback: strip teacher-instruction prefixes, then mirror the action directly
+    cleaned = re.sub(
+        r'^(the\s+learner\s+is\s+guided\s+to\s*:?|learners?\s+are\s+guided\s+to\s*:?'
+        r'|guide\s+learners?\s+to\s*:?|ask\s+learners?\s+to\s*:?'
+        r'|introduce\s+key\s+concepts\s+of\s+\S+\s+through\s+)',
+        '', text, flags=re.IGNORECASE
+    ).strip()
+
+    verb_match = re.match(
+        r'^(identify|list|name|describe|explain|compare|discuss|analyse|analyze|write|'
+        r'read|draw|solve|calculate|measure|observe|record|present|research|'
+        r'complete|create|design|construct|perform|demonstrate|evaluate|brainstorm|'
+        r'explore|investigate|examine|outline|reflect|apply|use|practise|practice|'
+        r'consolidate|develop|introduce)',
+        cleaned, re.IGNORECASE
+    )
+    if verb_match:
+        return f"{cleaned.rstrip('.')}; record findings in exercise book and share with the class"
+
+    return f"Actively participate in the activity on {topic}; record findings and discuss outcomes with peers"
 
 
 def _generate_extended_activities(subject, topic, substrand, experiences=None):
@@ -669,6 +875,9 @@ def _generate_extended_activities(subject, topic, substrand, experiences=None):
         (['health', 'nutrition', 'diet', 'hygiene'],
          f"Fast learners: Plan a one-week balanced meal plan for a family of four; justify each day's food group choices",
          f"Need support: Sort food picture cards into correct food groups using a food pyramid reference chart"),
+        (['cre', 'christian', 'leisure', 'ire', 'islamic', 'religion', 'faith', 'moral', 'religious'],
+         f"Fast learners: Research a biblical or religious teaching on {topic}; write a short structured reflection (150 words) explaining how its values apply to modern youth life",
+         f"Need support: Use a provided scripture or text extract to answer three guided questions about the values and lessons taught in relation to {topic}; use the sentence starters provided"),
     ]
 
     for keywords, fast, support in ext_map:
@@ -684,16 +893,49 @@ def _generate_values_with_context(values_raw, subject, topic, substrand):
     """Return 2–3 value statements each with a lesson-specific contextual explanation."""
     combined = (topic + ' ' + (substrand or '') + ' ' + subject).lower()
 
-    context_map = {
-        'unity': f"learners collaborate in groups during {topic} activities, combining individual strengths to achieve a shared goal",
-        'responsibility': f"learners take ownership of their tasks and handle all materials carefully during {topic}",
-        'integrity': f"learners report observations and findings honestly without falsifying results during {topic}",
-        'respect': f"learners listen attentively to peers' contributions and value diverse approaches to {topic}",
-        'peace': f"learners resolve group disagreements calmly and maintain a harmonious working environment during {topic}",
-        'love': f"learners show care for the environment, community and peers through their engagement with {topic}",
-        'patriotism': f"learners appreciate how {topic} contributes to national development and the well-being of Kenya",
-        'social justice': f"learners consider equitable access to resources and fair opportunities related to {topic}",
-    }
+    _is_literary = any(k in combined for k in [
+        'character', 'story', 'narrative', 'poem', 'poetry', 'oral',
+        'literature', 'drama', 'play', 'reader', 'reading', 'writing',
+        'english', 'language', 'grammar', 'comprehension',
+    ])
+    _is_science = any(k in combined for k in [
+        'science', 'biology', 'chemistry', 'physics', 'ecosystem', 'cell',
+        'experiment', 'observ',
+    ])
+
+    if _is_literary:
+        context_map = {
+            'respect':        f"learners appreciate diverse character perspectives and value the experiences of others encountered in {topic}",
+            'integrity':      f"learners analyse characters' moral choices honestly and form evidence-based personal opinions about {topic}",
+            'love':           f"learners show empathy for characters' experiences and demonstrate compassion for diverse human situations in {topic}",
+            'unity':          f"learners collaborate in group discussions and dramatisations, combining insights to understand {topic}",
+            'responsibility': f"learners take ownership of their reading, written responses and contributions to class discussion on {topic}",
+            'peace':          f"learners resolve differing literary interpretations respectfully during group work on {topic}",
+            'patriotism':     f"learners appreciate how texts on {topic} reflect Kenyan culture, identity and national values",
+            'social justice': f"learners consider themes of fairness, equality and justice as represented in texts about {topic}",
+        }
+    elif _is_science:
+        context_map = {
+            'integrity':      f"learners record and report experimental observations honestly without falsifying results during {topic}",
+            'responsibility': f"learners handle apparatus safely and take ownership of fair testing during {topic}",
+            'respect':        f"learners value peers' experimental findings and consider different scientific explanations for {topic}",
+            'unity':          f"learners collaborate in practicals, sharing roles and expertise when investigating {topic}",
+            'love':           f"learners show curiosity and care for the natural world through their investigation of {topic}",
+            'patriotism':     f"learners appreciate how scientific knowledge about {topic} contributes to Kenya's development",
+            'peace':          f"learners engage in respectful scientific debate and collaborative problem solving during {topic}",
+            'social justice': f"learners consider equitable access to science and technology in the context of {topic}",
+        }
+    else:
+        context_map = {
+            'unity':          f"learners collaborate in groups during {topic} activities, combining individual strengths to achieve a shared goal",
+            'responsibility': f"learners take ownership of their tasks and handle all materials carefully during {topic}",
+            'integrity':      f"learners engage honestly and ethically in all tasks and discussions related to {topic}",
+            'respect':        f"learners listen attentively to peers' contributions and value diverse approaches to {topic}",
+            'peace':          f"learners resolve group disagreements calmly and maintain a harmonious working environment during {topic}",
+            'love':           f"learners show care for the environment, community and peers through their engagement with {topic}",
+            'patriotism':     f"learners appreciate how {topic} contributes to national development and the well-being of Kenya",
+            'social justice': f"learners consider equitable access to resources and fair opportunities related to {topic}",
+        }
 
     working = list(values_raw) if values_raw else []
 
@@ -702,8 +944,10 @@ def _generate_values_with_context(values_raw, subject, topic, substrand):
         defaults = ['Unity', 'Responsibility', 'Patriotism']
     elif any(k in combined for k in ['math', 'algebra', 'fraction', 'geometr', 'statistic']):
         defaults = ['Integrity', 'Responsibility', 'Respect']
-    elif any(k in combined for k in ['reading', 'writing', 'grammar', 'english', 'language']):
-        defaults = ['Respect', 'Integrity', 'Responsibility']
+    elif any(k in combined for k in ['reading', 'writing', 'grammar', 'english', 'language',
+                                       'character', 'story', 'narrative', 'poem', 'poetry',
+                                       'oral', 'literature', 'drama', 'play', 'reader']):
+        defaults = ['Respect', 'Integrity', 'Love']
     elif any(k in combined for k in ['science', 'ecosystem', 'cell', 'biology', 'chemistry']):
         defaults = ['Responsibility', 'Integrity', 'Love']
     elif any(k in combined for k in ['social studies', 'history', 'civic', 'geography']):
@@ -727,10 +971,111 @@ def _generate_values_with_context(values_raw, subject, topic, substrand):
     return result
 
 
+def _generate_extension_activity(topic, substrand, subject, prev_experiences):
+    """Return a NEW activity that applies or extends what was done in Lesson 1."""
+    combined = (topic + ' ' + (substrand or '') + ' ' + subject).lower()
+
+    ext_map = [
+        (['soil conserv', 'soil erosion'],
+         (f"Guide learners to evaluate the farm model constructed in Lesson 1: identify weaknesses, "
+          f"suggest improvements, and record two additional soil conservation measures not used in the model",
+          f"Evaluate the Lesson 1 farm model; add two improvements and record findings with labelled sketches")),
+        (['water harvest', 'water storage', 'irrigation'],
+         (f"Guide learners to calculate the water harvesting capacity of a proposed structure using given dimensions",
+          f"Calculate the water storage volume using the formula V = l × w × h; compare answers with a partner")),
+        (['crop produc', 'kitchen garden', 'seed', 'planting', 'backyard garden'],
+         (f"Guide learners to plan a planting calendar for a kitchen garden, selecting crops suitable for local seasons",
+          f"Use provided rainfall and temperature data to select two crops and justify the planting dates chosen")),
+        (['poultry', 'livestock', 'animal'],
+         (f"Guide learners to calculate the cost-benefit analysis of a small-scale {topic.lower()} enterprise "
+          f"using provided unit costs",
+          f"Complete the cost-benefit worksheet; identify which variable most affects profitability")),
+        (['pest', 'disease control', 'weed'],
+         (f"Guide learners to develop a one-week integrated pest management (IPM) schedule for a specific crop",
+          f"Draft an IPM weekly schedule; include at least one biological, cultural and chemical control measure")),
+        (['fraction', 'decimal', 'ratio', 'percent'],
+         (f"Guide learners to solve three multi-step real-life problems applying {topic.lower()} "
+          f"(e.g. shopping, cooking, farming contexts)",
+          f"Solve the three word problems showing full working; underline the final answer for each")),
+        (['algebra', 'equation', 'linear', 'quadratic'],
+         (f"Guide learners to formulate and solve their own real-life equation based on a scenario they create",
+          f"Write a personal scenario, form the equation, solve and verify the solution by substituting back")),
+        (['geometr', 'shape', 'area', 'volume', 'angle'],
+         (f"Guide learners to measure classroom/school spaces and apply {topic.lower()} formulae to real measurements",
+          f"Measure and record three dimensions; calculate using the appropriate formula and compare with estimates")),
+        (['statistic', 'data', 'graph', 'probabilit'],
+         (f"Guide learners to collect real data from the class (e.g. travel time, shoe size) "
+          f"and draw the most appropriate graph",
+          f"Collect data, complete the frequency table and draw the graph; write two observations from the graph")),
+        (['reading', 'comprehension', 'intensive reading'],
+         (f"Guide learners to compare the Lesson 1 passage to a second shorter text on the same theme; "
+          f"identify similarities and differences in purpose and tone",
+          f"Read the second passage; complete a two-column comparison table (Passage 1 vs Passage 2) in exercise book")),
+        (['writing', 'essay', 'composition', 'creative writing'],
+         (f"Guide learners to peer-edit their Lesson 1 draft using a provided checklist; then write a revised final copy",
+          f"Use the editing checklist to improve the Lesson 1 draft; write the final polished version")),
+        (['grammar', 'tense', 'punctuation', 'sentence'],
+         (f"Guide learners to apply the grammar rule from Lesson 1 in original sentences, "
+          f"then analyse a paragraph for correct/incorrect usage",
+          f"Write five original sentences applying the rule; mark and correct the errors in the provided paragraph")),
+        (['ecosystem', 'biodiversit', 'environment', 'conservation', 'climate'],
+         (f"Guide learners to analyse a before/after photo of a degraded vs restored ecosystem; "
+          f"identify causes and suggest restoration actions",
+          f"Study the two photos; list three causes of degradation and propose two restoration actions with justification")),
+        (['cell', 'microscop', 'organism', 'photosynthes', 'respiration'],
+         (f"Guide learners to create an annotated flow diagram summarising the process studied in Lesson 1",
+          f"Draw the flow diagram with at least four labelled stages; write one sentence explaining each stage")),
+        (['map', 'topograph', 'map reading'],
+         (f"Guide learners to apply map reading skills to interpret a real local map and answer structured questions",
+          f"Use the provided local map to answer five structured questions on distance, direction and features")),
+        (['history', 'civic', 'constitution', 'government', 'rights', 'duties'],
+         (f"Guide learners to create a case study of one right or duty from Lesson 1 as it applies in their community",
+          f"Write a short case study (8–10 sentences) giving a real example of the right/duty in community life")),
+        (['health', 'nutrition', 'diet', 'hygiene'],
+         (f"Guide learners to evaluate a sample meal for nutritional balance using the food groups chart from Lesson 1",
+          f"Analyse the sample meal; identify any missing food groups and suggest a corrected balanced version")),
+    ]
+
+    for keywords, (teacher_act, learner_act) in ext_map:
+        if any(kw in combined for kw in keywords):
+            return teacher_act, learner_act
+
+    # Generic fallback
+    teacher = (f"Guide learners to apply the key concepts from Lesson 1 to a new scenario: "
+               f"present a case study or problem related to {topic} and ask learners to propose solutions in groups")
+    learner = (f"Analyse the new scenario in groups; apply Lesson 1 concepts to propose and justify a solution; "
+               f"record the group response in exercise book")
+    return teacher, learner
+
+
+def _generate_assessment_criteria(outcomes, topic):
+    """Return a list of assessment criteria statements derived from SLOs."""
+    if not outcomes:
+        return [
+            f"Learner can explain key concepts of {topic} accurately",
+            f"Learner demonstrates understanding through practical application",
+            f"Learner participates actively and communicates ideas clearly",
+        ]
+    criteria = []
+    for out in outcomes:
+        # Convert outcome to criterion: "describe X" → "Learner can describe X with accuracy"
+        out_clean = out.strip().rstrip('.')
+        first_word = out_clean.split()[0].lower() if out_clean else ''
+        if first_word in ('describe', 'explain', 'define', 'state', 'identify', 'name', 'list'):
+            criteria.append(f"Learner can {out_clean} correctly and in own words")
+        elif first_word in ('demonstrate', 'carry out', 'perform', 'conduct', 'apply', 'use'):
+            criteria.append(f"Learner {out_clean} accurately and safely during the practical task")
+        elif first_word in ('calculate', 'solve', 'compute', 'measure', 'draw', 'plot'):
+            criteria.append(f"Learner can {out_clean}, showing all working and with correct result")
+        else:
+            criteria.append(f"Learner can {out_clean} as evidenced by their written/practical work")
+    return criteria[:4]
+
+
 def _build_single_lesson_plan(
     lesson_number, total_lessons, subject, grade, topic, strand, substrand,
     outcomes, questions, experiences, competencies, values, duration, date_str,
-    links=None, pcis=None
+    links=None, pcis=None, all_experiences=None
 ):
     """Build a single lesson plan string for one lesson in a series."""
     current_year = datetime.today().year
@@ -758,44 +1103,62 @@ def _build_single_lesson_plan(
     questions = questions[:3]
     # Pad to at least 2 if the DB only supplied 1
     if len(questions) < 2:
-        questions.append(f"How does knowledge of {substrand or topic} apply in everyday life?")
+        combined_kiq = (topic + ' ' + (substrand or '')).lower()
+        if any(k in combined_kiq for k in ['soil', 'conserv', 'agri', 'farm', 'crop', 'poultry', 'livestock']):
+            questions.append("How can we protect our soil and natural resources to ensure food security for future generations?")
+        elif any(k in combined_kiq for k in ['reading', 'comprehension', 'poetry', 'narrative', 'prose', 'intensive']):
+            questions.append("How does reading widely improve your ability to communicate effectively?")
+        elif any(k in combined_kiq for k in ['grammar', 'phrasal', 'tense', 'punctuation', 'sentence', 'writing', 'composition']):
+            questions.append("How does correct use of grammar and language help you communicate more clearly?")
+        elif any(k in combined_kiq for k in ['cre', 'christian', 'creation', 'leisure', 'faith', 'ire', 'islamic', 'religion']):
+            questions.append("How can the values and teachings from this lesson guide your decisions in everyday life?")
+        elif any(k in combined_kiq for k in ['math', 'algebra', 'fraction', 'geometr', 'statistic', 'equation']):
+            questions.append("Where do you encounter this mathematical concept in your daily life or community?")
+        elif any(k in combined_kiq for k in ['science', 'ecosystem', 'cell', 'photosynthes', 'organism', 'energy', 'force']):
+            questions.append("How does understanding this scientific concept help you solve real-world problems?")
+        elif any(k in combined_kiq for k in ['map', 'geograph', 'history', 'civic', 'social', 'population']):
+            questions.append("How does the knowledge from this lesson help you become a more responsible citizen?")
+        elif any(k in combined_kiq for k in ['health', 'nutrition', 'diet', 'hygiene']):
+            questions.append("How can you apply what you learn about health and nutrition to improve your daily life?")
+        else:
+            questions.append(f"How can you apply what you learn about {substrand or topic} to benefit your community?")
     if questions:
         kiq_list = "\n".join([f"{i+1}. {item}" for i, item in enumerate(questions)])
     else:
         kiq_list = f"1. What are the key concepts in {substrand or topic}?\n2. How does this knowledge apply in daily life?"
     
-    # Format suggested learning experiences into lesson steps
-    lesson_steps = []
-    if experiences:
-        for exp in experiences[:3]:
-            lesson_steps.append(exp)
-    
-    # Pad with contextual steps if not enough experiences
-    step_defaults_intro = [
-        f"Introduce key concepts of {topic} through discussion and real-life examples",
-        f"Guide learners to explore {topic} through hands-on activities and group work",
-        f"Consolidate understanding through practice exercises on {topic}"
-    ]
-    step_defaults_middle = [
-        f"Review previous lesson's concepts on {topic} and address any difficulties",
-        f"Deepen understanding through guided practice and problem-solving activities",
-        f"Apply concepts to new contexts and real-world situations"
-    ]
-    step_defaults_end = [
-        f"Review all key concepts covered across the {total_lessons} lessons on {topic}",
-        f"Assess learner understanding through practical application and peer discussion",
-        f"Summarize learning, clarify misconceptions, and extend to real-world connections"
-    ]
-    
+    # -----------------------------------------------------------------------
+    # Build lesson steps — Lesson 1 uses DB activities; Lesson 2+ is NEW and
+    # distinctly different: review → extension → assessment
+    # -----------------------------------------------------------------------
     if lesson_number == 1:
-        defaults = step_defaults_intro
-    elif lesson_number == total_lessons:
-        defaults = step_defaults_end
+        lesson_steps = list(experiences[:3]) if experiences else []
+        step_defaults = [
+            f"Introduce key concepts of {topic} through discussion and real-life examples",
+            f"Guide learners to explore {topic} through hands-on activities and group work",
+            f"Consolidate understanding of {topic} through practice exercises",
+        ]
+        while len(lesson_steps) < 3:
+            lesson_steps.append(step_defaults[len(lesson_steps)])
     else:
-        defaults = step_defaults_middle
-    
-    while len(lesson_steps) < 3:
-        lesson_steps.append(defaults[len(lesson_steps)])
+        # Use ALL DB activities (all_experiences) as the reference for what Lesson 1 covered
+        l1_ref = (all_experiences or experiences or [])
+        l1_activity_summary = (
+            l1_ref[0] if l1_ref else f"activities introduced during Lesson 1 on {topic}"
+        )
+        ext_teacher, _ext_learner_inline = _generate_extension_activity(
+            topic, substrand, subject, l1_ref
+        )
+        lesson_steps = [
+            # Step 1 — review / presentation of Lesson 1 work
+            f"Invite groups to present or display their completed work from Lesson 1 "
+            f"({l1_activity_summary[:80].rstrip()}); facilitate brief peer feedback",
+            # Step 2 — NEW applying/extending activity
+            ext_teacher,
+            # Step 3 — assessment activity
+            f"Administer a short written or practical assessment on {topic}: "
+            f"learners answer three targeted questions covering all SLOs independently",
+        ]
     
     # Format competencies (clean — no "Values" or "Link to" prefixes)
     competencies_text = "\n".join([f"- {c}" for c in competencies]) if competencies else "- Critical thinking and problem solving\n- Communication and collaboration\n- Self-efficacy"
@@ -824,86 +1187,165 @@ def _build_single_lesson_plan(
     if lesson_number == 1:
         teacher_intro = (
             f"Engage learners with a starter activity related to {topic}. "
-            f"Assess prior knowledge. "
-            f"Relate {topic} to real-life contexts."
+            f"Assess prior knowledge through brief questioning. "
+            f"Relate {topic} to real-life contexts and state today's learning objectives."
         )
         learner_intro = (
-            f"Respond to starter questions. "
-            f"Share what they already know about {topic}. "
-            f"Discuss real-life connections."
-        )
-    elif lesson_number == total_lessons:
-        teacher_intro = (
-            f"Quick review of key concepts from previous lessons on {topic}. "
-            f"Identify remaining areas of difficulty."
-        )
-        learner_intro = (
-            f"Recall and share key points from previous lessons. "
-            f"Ask questions on areas of difficulty."
+            f"Respond to starter questions about {topic}. "
+            f"Share prior knowledge and real-life connections. "
+            f"Listen to and write down today's learning outcomes."
         )
     else:
+        # Lesson 2+: open with presentation/review of Lesson 1 work
         teacher_intro = (
-            f"Review key points from Lesson {lesson_number - 1}. "
-            f"Address questions from the previous lesson. "
-            f"Connect previous learning to today's focus."
+            f"Direct learners to display or prepare their Lesson 1 work for presentation. "
+            f"Call on two or three groups to briefly present their key findings on {topic}. "
+            f"Clarify any misconceptions identified during the review."
         )
         learner_intro = (
-            f"Recall previous lesson concepts. "
-            f"Answer review questions. "
-            f"Listen to today's objectives."
+            f"Display or prepare Lesson 1 work for presentation. "
+            f"Listen to peers' presentations; note one similarity and one difference "
+            f"from their own Lesson 1 work. "
+            f"Ask clarifying questions about any misconceptions."
         )
-    
+
     # Lesson Body / Development
     teacher_dev_parts = []
     learner_dev_parts = []
-    for i, step in enumerate(lesson_steps[:3]):
-        teacher_dev_parts.append(f"Step {i+1}: {step}")
-        learner_dev_parts.append(f"Step {i+1}: {_generate_step_learner_mirror(step, topic)}")
-    teacher_dev_parts.append("Circulate and monitor progress; ask probing questions to deepen understanding")
-    learner_dev_parts.append("Record all findings in exercise book; discuss conclusions with peers")
+    if lesson_number == 1:
+        # Normal DB-driven steps for Lesson 1
+        for i, step in enumerate(lesson_steps[:3]):
+            teacher_dev_parts.append(f"Step {i+1}: {step}")
+            learner_dev_parts.append(f"Step {i+1}: {_generate_step_learner_mirror(step, topic)}")
+        teacher_dev_parts.append(
+            "Circulate and monitor progress; ask probing questions to deepen understanding"
+        )
+        learner_dev_parts.append(
+            "Record all findings in exercise book; discuss conclusions with peers"
+        )
+    else:
+        # Lesson 2+: Step 1 = review presentation, Step 2 = new extension, Step 3 = assessment
+        # Step 1 — Facilitate Lesson 1 review/presentation
+        teacher_dev_parts.append(f"Step 1: {lesson_steps[0]}")
+        learner_dev_parts.append(
+            f"Step 1: Present Lesson 1 work to the class or in groups; "
+            f"take brief notes on peer feedback and record one improvement to make"
+        )
+        # Step 2 — NEW extension activity
+        teacher_dev_parts.append(f"Step 2: {lesson_steps[1]}")
+        # Mirror the extension activity specifically
+        _l1_ref_inner = (all_experiences or experiences or [])
+        _, _ext_learner_step2 = _generate_extension_activity(topic, substrand, subject, _l1_ref_inner)
+        learner_dev_parts.append(f"Step 2: {_ext_learner_step2}")
+        # Step 3 — Assessment activity
+        teacher_dev_parts.append(
+            f"Step 3: {lesson_steps[2]} "
+            f"Circulate and note individual performance against each SLO."
+        )
+        learner_dev_parts.append(
+            f"Step 3: Attempt all assessment questions individually without assistance; "
+            f"show all working where applicable; submit on completion"
+        )
 
     teacher_dev = " ".join(teacher_dev_parts)
     learner_dev = " ".join(learner_dev_parts)
-    
+
     # Conclusion
-    if lesson_number < total_lessons:
+    if lesson_number == 1 and total_lessons > 1:
         teacher_concl = (
-            f"Summarize key learning points. "
-            f"Preview Lesson {lesson_number + 1}. "
-            f"Assign preparatory tasks."
+            f"Summarize key learning points from Lesson 1. "
+            f"Preview Lesson 2: inform learners they will present their work and complete "
+            f"an extension task. Assign: learners to review and finalize their Lesson 1 work."
         )
         learner_concl = (
-            f"Share what they have learnt. "
-            f"Ask questions for clarification. "
-            f"Note assignments for next lesson."
+            f"Share two key things learned today about {topic}. "
+            f"Record the Lesson 2 preview and assignment in exercise book. "
+            f"Begin reviewing/finalizing Lesson 1 work for presentation."
+        )
+    elif lesson_number > 1:
+        # Individual written reflection + assessment criteria
+        criteria = _generate_assessment_criteria(outcomes, topic)
+        criteria_str = " | ".join([f"({j+1}) {c}" for j, c in enumerate(criteria)])
+        teacher_concl = (
+            f"Read out the assessment criteria for this lesson: {criteria_str}. "
+            f"Direct learners to complete an individual written reflection in exercise book. "
+            f"Collect assessment work; provide formative feedback before the next lesson."
+        )
+        learner_concl = (
+            f"Self-assess against each criterion read by the teacher. "
+            f"Write individual reflection: (1) I can now... (2) I found challenging... "
+            f"(3) I will apply this by... Submit assessment work to the teacher."
         )
     else:
+        # Single lesson or final lesson in multi-lesson set
         teacher_concl = (
-            f"Summarize all key learning points across the {total_lessons} lessons. "
+            f"Summarize all key learning points on {topic}. "
             f"Celebrate learner progress. "
             f"Connect learning to broader curriculum goals."
         )
         learner_concl = (
-            f"Reflect on key takeaways. "
+            f"Reflect on key takeaways from {topic}. "
             f"Share achievements and areas of growth. "
             f"Relate learning to everyday life."
         )
     
     _all_res = _generate_lesson_resources(subject, grade, topic, substrand)
-    # Introduction: KICD books + first topic-specific item only (starter activity resources)
-    res_intro = ", ".join(_all_res[:2] + ([_all_res[2]] if len(_all_res) > 2 else ['Chalkboard/whiteboard and chalk/markers']))
-    # Development: all resources
-    res_dev = ", ".join(_all_res)
-    # Conclusion: main reference + exercise books + assessment checklist
+    # Introduction: KICD books + first topic-specific item only
+    if lesson_number == 1:
+        res_intro = ", ".join(_all_res[:2] + ([_all_res[2]] if len(_all_res) > 2 else ['Chalkboard/whiteboard and chalk/markers']))
+    else:
+        # Lesson 2+ intro: learner work from Lesson 1 + KICD book
+        res_intro = f"{_all_res[0]}, Lesson 1 completed work (group models/notes/worksheets), Chalkboard/whiteboard and chalk/markers"
+    # Development: all resources for Lesson 1; assessment sheet added for Lesson 2+
+    if lesson_number == 1:
+        res_dev = ", ".join(_all_res)
+    else:
+        res_dev = ", ".join(_all_res) + ", Short assessment worksheet/question card"
+    # Conclusion: reference book + exercise books + assessment rubric
     res_concl = ", ".join([_all_res[0], 'Learner exercise books', 'Assessment rubric/checklist'])
-    assessment_intro = "Oral questions, Observation"
-    assessment_dev = "Observation, Practical work, Group participation, Oral/written exercises"
-    assessment_concl = "Question and answer, Learner self-assessment"
+
+    if lesson_number == 1:
+        assessment_intro = "Oral questions, Observation"
+        assessment_dev = "Observation, Practical work, Group participation, Oral/written exercises"
+        assessment_concl = "Question and answer, Learner self-assessment"
+    else:
+        assessment_intro = "Peer feedback observation, Presentation checklist"
+        assessment_dev = "Written assessment, Observation of extension task, Individual performance"
+        assessment_concl = "Self-assessment against criteria, Written reflection, Formative feedback"
 
     # Extended activities (topic-specific)
-    _ext_fast_raw, _ext_support_raw = _generate_extended_activities(subject, topic, substrand, experiences)
+    _ext_fast_raw, _ext_support_raw = _generate_extended_activities(subject, topic, substrand, all_experiences or experiences)
     ext_fast = f"- {_ext_fast_raw}"
     ext_support = f"- {_ext_support_raw}"
+
+    # Reflection / assessment criteria block — lesson-specific
+    if lesson_number == 1 and total_lessons > 1:
+        reflection_block = (
+            f"- What key concepts about {topic} did learners understand today?\n"
+            f"- Which learners may need additional support before Lesson 2?\n"
+            f"- Was the group activity completed as intended?\n"
+            f"- Reminder: ensure all groups finalize their work for Lesson 2 presentation."
+        )
+    elif lesson_number > 1:
+        criteria = _generate_assessment_criteria(outcomes, topic)
+        crit_lines = "\n".join([f"  {j+1}. {c}" for j, c in enumerate(criteria)])
+        reflection_block = (
+            f"Assessment Criteria (tied to SLOs):\n{crit_lines}\n\n"
+            f"Learner Written Reflection prompts:\n"
+            f"  - I can now: ___________________________\n"
+            f"  - I found challenging: _________________\n"
+            f"  - I will apply this by: ________________\n\n"
+            f"Teacher Reflection:\n"
+            f"- Did all learners meet the assessment criteria?\n"
+            f"- Which criteria require re-teaching before the next lesson?\n"
+            f"- How will individual written reflections inform planning?"
+        )
+    else:
+        reflection_block = (
+            f"- What did learners learn about {topic} today?\n"
+            f"- What was challenging for most learners?\n"
+            f"- How can this knowledge be applied in everyday life?"
+        )
 
     plan = f"""
 {'=' * 60}
@@ -966,14 +1408,12 @@ Sub-Strand: {substrand if substrand else "__________________"}
 
 11) EXTENDED ACTIVITIES
 
-{{ext_fast}}
-{{ext_support}}
+{ext_fast}
+{ext_support}
 
-12) REFLECTION
+12) REFLECTION AND ASSESSMENT CRITERIA
 
-- What did learners learn today?
-- What was challenging?
-- How can this be applied in everyday life?
+{reflection_block}
 
 ---
 ⚠️ AI-generated — verify against KICD curriculum design before classroom use.
@@ -1009,7 +1449,9 @@ def generate_lesson_plan(subject, grade, topic="", duration=40):
     
     # Extract curriculum components
     strand = curriculum.get('strand', '')
-    substrand = curriculum.get('substrand', '')
+    _sub_num = curriculum.get('substrand_number', '').strip()
+    _sub_name = curriculum.get('substrand', '').strip()
+    substrand = _combine_substrand(_sub_num, _sub_name)
     learning_outcomes = curriculum.get('learning_outcomes', [])
     key_questions = curriculum.get('key_inquiry_questions', [])
     experiences = curriculum.get('suggested_learning_experiences', [])
@@ -1018,8 +1460,9 @@ def generate_lesson_plan(subject, grade, topic="", duration=40):
     raw_pcis = curriculum.get('pcis', [])
     raw_link_subjects = curriculum.get('link_subjects', [])
     
-    # Clean up empty or stub items
-    learning_outcomes = [o for o in learning_outcomes if len(o.strip()) > 10]
+    # Clean up empty or stub items — strip PDF preamble headers from SLOs
+    learning_outcomes = [_clean_slo(o) for o in learning_outcomes]
+    learning_outcomes = [o for o in learning_outcomes if _is_valid_slo(o)]
     key_questions = [q for q in key_questions if len(q.strip()) > 5]
     # Filter preamble stubs like "Learners are guided to:" — Issue 4
     experiences = [
@@ -1128,6 +1571,7 @@ def generate_lesson_plan(subject, grade, topic="", duration=40):
             date_str=date_str,
             links=shared_links,
             pcis=shared_pcis,
+            all_experiences=experiences,  # full list so Lesson 2+ knows what Lesson 1 covered
         )
         all_plans.append(plan)
     
@@ -1271,191 +1715,190 @@ def _group_experiences_into_substrands(experiences):
     return groups if groups else [experiences]
 
 
+def _clean_strand_name(text):
+    """Fix PDF line-break artifacts in strand names, e.g. 'Christia n Living' → 'Christian Living'."""
+    if not text:
+        return text
+    # Strip leading dots/punctuation (e.g. '. Reading' → 'Reading')
+    text = re.sub(r'^[\s.,:;\-]+', '', text).strip()
+    # Remove lesson-count suffixes like '(9 lessons)' from strand display
+    text = re.sub(r'\s*\(\s*\d+\s*lessons?\s*\)', '', text, flags=re.IGNORECASE).strip()
+    # Rejoin single letters/fragments that were split by a line-break in the PDF
+    # e.g. 'Christia n' → 'Christian', 'Livi ng' → 'Living'
+    text = re.sub(
+        r'([A-Za-z]{3,})\s+([a-z]{1,3})(?=\s|$)',
+        lambda m: m.group(1) + m.group(2)
+            if not m.group(2) in ('in', 'on', 'of', 'to', 'by', 'at', 'is', 'an', 'and', 'the', 'or')
+            else m.group(0),
+        text
+    )
+    return text.strip()
+
+
 def generate_scheme_of_work(subject, grade, term="1"):
     """
     Generate a Scheme of Work in the standard Kenyan CBC / TSC tabular format.
-    
-    Standard columns:
-    Wk | Lsn | Strand | Sub-strand | Specific Learning Outcomes |
-    Key Inquiry Question(s) | Learning Experiences | Learning Resources |
-    Assessment | Reflection
+    Iterates through ALL sub-strands for the subject/grade so every week
+    covers a different topic — not the same one repeated.
+
+    Columns: Wk | Lsn | Strand | Sub-strand | Specific Learning Outcomes |
+    Learning Experiences | Key Inquiry Question(s) | Learning Resources |
+    Assessment | Core Competencies | Values | PCIs | Remarks
     """
-    curriculum = query_curriculum(subject, grade)
-    
-    if not curriculum:
+    from curriculum_db import get_curriculum as _get_all_curriculum  # noqa (kept for compat)
+
+    # ── Fetch EVERY sub-strand entry for this subject + grade ────────────────
+    all_entries = _get_all_matching_entries(subject, grade)
+    if not all_entries:
         return {
             "success": False,
             "error": f"Curriculum not found for {subject} {grade}",
             "content": ""
         }
-    
+
+    valid_entries = [
+        e for e in all_entries
+        if e.get('substrand') and len(e.get('substrand', '').strip()) > 3
+    ]
+    if not valid_entries:
+        valid_entries = all_entries
+
     current_year = datetime.today().year
-    
-    # Extract curriculum components
-    strand = curriculum.get('strand', '')
-    substrand = curriculum.get('substrand', '')
-    learning_outcomes = curriculum.get('learning_outcomes', [])
-    key_questions = curriculum.get('key_inquiry_questions', [])
-    experiences = curriculum.get('suggested_learning_experiences', [])
-    raw_competencies = curriculum.get('core_competencies', [])
-    raw_values = curriculum.get('values', [])
-    
-    # Filter stubs
-    learning_outcomes = [o for o in learning_outcomes if len(o.strip()) > 10]
-    experiences = [e for e in experiences if len(e.strip()) > 10]
-    
-    # Clean up contaminated competencies / values
-    competencies, values, links, pcis = _classify_competency_items(
-        raw_competencies + raw_values
-    )
-    if not competencies:
-        competencies = ["Critical thinking and problem solving",
-                        "Communication and collaboration",
-                        "Self-efficacy"]
-    if not values:
-        values = ["Respect", "Responsibility", "Unity"]
-    
-    # Group learning outcomes and experiences by sub-strand
-    outcome_groups = _group_outcomes_into_substrands(learning_outcomes)
-    experience_groups = _group_experiences_into_substrands(experiences)
-    
-    # Grade-based lesson duration and lessons per week
     grade_num = int(re.search(r'\d+', grade).group()) if re.search(r'\d+', grade) else 7
     lesson_duration = 35 if grade_num <= 6 else 40
     lessons_per_week = 3 if grade_num <= 6 else 2
-    
-    # A Kenyan school term is typically 12-14 weeks
-    # Set minimum 12 weeks for a complete term scheme of work
+
     MIN_TERM_WEEKS = 12
     MAX_TERM_WEEKS = 14
-    
-    # Determine total lessons from strand text (if specified)
-    extracted_lessons = _extract_lesson_count(strand)
-    
-    # Calculate weeks based on extracted lessons or default to full term
-    if extracted_lessons > 0:
-        num_weeks = max(MIN_TERM_WEEKS, math.ceil(extracted_lessons / lessons_per_week))
-        num_weeks = min(num_weeks, MAX_TERM_WEEKS)
-        total_lessons = num_weeks * lessons_per_week
-    else:
-        # Default to full 12-week term
-        num_weeks = MIN_TERM_WEEKS
-        total_lessons = num_weeks * lessons_per_week
-    
-    strand_topic = _extract_strand_topic(strand) or subject
-    
-    # Distribute questions evenly across all lessons
-    questions_per_lesson_count = max(1, math.ceil(len(key_questions) / total_lessons)) if key_questions else 0
-    
-    # Build the weekly lesson rows
-    lesson_counter = 0
+
+    # ── Build one lesson-row per lesson across all sub-strands ───────────────
     table_rows = []
-    
-    for week_idx in range(num_weeks):
-        # Determine how many lessons this week
-        remaining = total_lessons - lesson_counter
-        week_lesson_count = min(lessons_per_week, remaining)
-        if week_lesson_count <= 0:
-            week_lesson_count = 1
-        
-        # Get outcomes for this week (from grouped substrands)
-        if week_idx < len(outcome_groups):
-            week_outcomes = outcome_groups[week_idx]
+    global_lesson = 0
+    week_num = 1
+    lessons_in_current_week = 0
+
+    for entry in valid_entries:
+        raw_strand = entry.get('strand', '') or subject
+        strand = _clean_strand_name(raw_strand)
+
+        _sub_num = entry.get('substrand_number', '').strip()
+        _sub_name = entry.get('substrand', '').strip()
+        substrand = _combine_substrand(_sub_num, _sub_name)
+
+        learning_outcomes = entry.get('learning_outcomes', [])
+        key_questions     = entry.get('key_inquiry_questions', []) or []
+        experiences       = entry.get('suggested_learning_experiences', []) or []
+        raw_competencies  = entry.get('core_competencies', []) or []
+        raw_values        = entry.get('values', []) or []
+
+        # Clean SLOs
+        learning_outcomes = [_clean_slo(o) for o in learning_outcomes]
+        learning_outcomes = [o for o in learning_outcomes if _is_valid_slo(o)]
+
+        # Clean experiences (strip preamble stubs)
+        experiences = [
+            re.sub(r'^learners?\s+are\s+guided\s+to\s*:?\s*', '', e, flags=re.IGNORECASE).strip()
+            for e in experiences
+        ]
+        experiences = [e for e in experiences if len(e) > 10 and not _STUB_ACTIVITY.match(e)]
+
+        # Competencies / values for this entry
+        comps, vals, links, pcis_raw = _classify_competency_items(raw_competencies + raw_values)
+        if not comps:
+            comps = ["Critical thinking and problem solving",
+                     "Communication and collaboration", "Self-efficacy"]
+        if not vals:
+            vals = ["Respect", "Responsibility", "Unity"]
+
+        # Topic-aware PCIs
+        pcis_list = _generate_pcis(strand, substrand, substrand, pcis_raw)
+        pcis_str = "; ".join(pcis_list[:2]) if pcis_list else _generate_pcis(subject, substrand, substrand, [])
+        if isinstance(pcis_str, list):
+            pcis_str = "; ".join(pcis_str[:2])
+
+        comp_str = ", ".join(comps[:3])
+        val_str  = ", ".join(vals[:3])
+
+        # Determine how many lessons this sub-strand needs
+        num_lessons = _extract_lesson_count(raw_strand)
+        if num_lessons <= 0:
+            # Estimate from number of outcomes or experiences
+            num_lessons = max(len(learning_outcomes), len(experiences), 2)
+        num_lessons = max(1, min(num_lessons, 8))  # cap 1–8 per sub-strand
+
+        # KIQ fallback — topic-specific, not "What have you learnt"
+        _combined_kiq = (substrand + ' ' + subject).lower()
+        if key_questions:
+            kiq_pool = [q for q in key_questions if len(q.strip()) > 10]
         else:
-            week_outcomes = outcome_groups[week_idx % len(outcome_groups)] if outcome_groups else []
-        
-        # Get experiences for this week
-        if week_idx < len(experience_groups):
-            week_experiences = experience_groups[week_idx]
-        elif experience_groups:
-            week_experiences = experience_groups[week_idx % len(experience_groups)]
-        else:
-            week_experiences = []
-        
-        # Extract topic for this week
-        topic_name = _extract_topic_from_outcome(
-            week_outcomes[0] if week_outcomes else None,
-            fallback_items=week_outcomes[1:] if len(week_outcomes) > 1 else None
-        )
-        if not topic_name:
-            topic_name = strand_topic
-        
-        # Clean outcomes text (strip preamble)
-        clean_outcomes = []
-        for o in week_outcomes:
-            cleaned = re.sub(
-                r'^by\s+the\s+end\s+of\s+the\s+sub-?\s*strand.*?:\s*',
-                '', o, flags=re.IGNORECASE
-            ).strip()
-            if cleaned:
-                clean_outcomes.append(cleaned)
-        
-        # Clean experiences text (strip "Learners are guided to:" preamble)
-        clean_experiences = []
-        for e in week_experiences:
-            cleaned = re.sub(
-                r'^learners\s+are\s+guided\s+to\s*:?\s*',
-                '', e, flags=re.IGNORECASE
-            ).strip()
-            if cleaned and len(cleaned) > 10:
-                clean_experiences.append(cleaned)
-        
-        # Distribute outcomes and experiences across lessons within the week
-        outcomes_per_lesson = _distribute_items(clean_outcomes, week_lesson_count)
-        experiences_per_lesson = _distribute_items(clean_experiences, week_lesson_count)
-        
-        for lsn_idx in range(week_lesson_count):
-            lesson_counter += 1
-            
-            # Lesson outcomes
-            lsn_outcomes = outcomes_per_lesson[lsn_idx] if lsn_idx < len(outcomes_per_lesson) else []
-            outcomes_text = "\n".join([f"• {o}" for o in lsn_outcomes]) if lsn_outcomes else "• (Continuation)"
-            
-            # Lesson experiences
-            lsn_exps = experiences_per_lesson[lsn_idx] if lsn_idx < len(experiences_per_lesson) else []
-            if not lsn_exps:
-                # Provide contextual defaults
-                lsn_exps = [f"Guided exploration of {topic_name.lower()} through discussion and practical activities"]
-            exp_text = "\n".join([f"• {e}" for e in lsn_exps])
-            
-            # Questions for this lesson — distribute across all lessons
-            q_start = (lesson_counter - 1) * questions_per_lesson_count
-            q_end = q_start + questions_per_lesson_count
-            lsn_questions = key_questions[q_start:q_end] if key_questions else []
-            if lsn_questions:
-                q_text = "\n".join([f"• {q}" for q in lsn_questions])
+            kiq_pool = []
+        if not kiq_pool:
+            if any(k in _combined_kiq for k in ['cre', 'christian', 'leisure', 'ire', 'islamic', 'religion', 'faith', 'moral']):
+                kiq_pool = [f"How do Christian/moral values help young people make responsible decisions about {substrand.lower()}?"]
+            elif any(k in _combined_kiq for k in ['soil', 'conserv', 'agri', 'farm', 'crop', 'livestock', 'poultry']):
+                kiq_pool = [f"How does proper management of {substrand.lower()} contribute to food security?"]
+            elif any(k in _combined_kiq for k in ['fraction', 'algebra', 'geometr', 'statistic', 'mathemat']):
+                kiq_pool = [f"Where do you encounter {substrand.lower()} in your daily life?"]
+            elif any(k in _combined_kiq for k in ['reading', 'writing', 'grammar', 'english', 'language']):
+                kiq_pool = [f"How does mastering {substrand.lower()} improve your communication skills?"]
+            elif any(k in _combined_kiq for k in ['science', 'ecosystem', 'cell', 'photosynthes', 'energy', 'force']):
+                kiq_pool = [f"How does understanding {substrand.lower()} help explain the world around you?"]
             else:
-                q_text = f"• What have you learnt about {topic_name.lower()}?"
-            
-            # Resources
-            resources = "• Textbooks\n• Charts/visual aids\n• Realia/models\n• Learner workbooks"
-            
-            # Assessment
-            assessment = "• Observation\n• Oral questions\n• Written exercise"
-            
-            # Reflection
-            reflection = "______________________"
-            
+                kiq_pool = [f"Why is it important to learn about {substrand.lower()}?"]
+
+        # Distribute outcomes and experiences across lessons for this sub-strand
+        for lsn_idx in range(num_lessons):
+            # Stop if we've exceeded MAX_TERM_WEEKS
+            if week_num > MAX_TERM_WEEKS:
+                break
+
+            global_lesson += 1
+            lessons_in_current_week += 1
+
+            # SLO for this lesson
+            if learning_outcomes:
+                slo = learning_outcomes[lsn_idx % len(learning_outcomes)]
+            else:
+                slo = f"Apply knowledge and skills related to {substrand}"
+
+            # Experience/activity for this lesson
+            if experiences:
+                exp = experiences[lsn_idx % len(experiences)]
+            elif lsn_idx == 0:
+                exp = f"Introduction to {substrand}: discussion of real-life examples and prior knowledge elicitation"
+            elif lsn_idx == num_lessons - 1:
+                exp = f"Assessment and consolidation on {substrand}: oral questions and written exercise"
+            else:
+                exp = f"Guided investigation of {substrand} through group work, observation and class discussion"
+
+            # KIQ for this lesson
+            kiq = kiq_pool[lsn_idx % len(kiq_pool)]
+
             table_rows.append({
-                "week": week_idx + 1,
-                "lesson": lesson_counter,
-                "lesson_in_week": lsn_idx + 1,
-                "strand": strand if strand else "N/A",
-                "substrand": topic_name,
-                "outcomes": outcomes_text,
-                "questions": q_text,
-                "experiences": exp_text,
-                "resources": resources,
-                "assessment": assessment,
+                "week":      week_num,
+                "lesson":    global_lesson,
+                "strand":    strand or subject,
+                "substrand": substrand,
+                "outcomes":  f"• {slo}",
+                "experiences": f"• {exp}",
+                "questions": f"• {kiq}",
+                "resources": "• Textbook\n• Charts/visual aids\n• Realia/models\n• Learner workbooks",
+                "assessment": "• Observation\n• Oral questions\n• Written exercise",
+                "comp_str":  comp_str,
+                "val_str":   val_str,
+                "pcis_str":  pcis_str,
             })
-    
-    # --- Build the final scheme of work document ---
-    
-    # Prepare cross-cutting text for table cells
-    comp_text = ", ".join(competencies[:5])
-    val_text = ", ".join(values[:5])
-    links_text = ", ".join(links[:3]) if links else "As applicable"
-    pcis_text = ", ".join(pcis[:3]) if pcis else "As applicable"
+
+            if lessons_in_current_week >= lessons_per_week:
+                week_num += 1
+                lessons_in_current_week = 0
+
+        if week_num > MAX_TERM_WEEKS:
+            break
+
+    # If we ran out of entries before MIN_TERM_WEEKS, note the actual count
+    num_weeks    = week_num - (1 if lessons_in_current_week == 0 else 0)
+    total_lessons = global_lesson
     
     # Utility: collapse multi-line bullet text into a single table-cell string
     def _cell(text):
@@ -1506,9 +1949,9 @@ def generate_scheme_of_work(subject, grade, term="1"):
             f"| {_cell(row['questions'])} "
             f"| {_cell(row['resources'])} "
             f"| {_cell(row['assessment'])} "
-            f"| {_cell(comp_text)} "
-            f"| {_cell(val_text)} "
-            f"| {_cell(pcis_text)} "
+            f"| {_cell(row['comp_str'])} "
+            f"| {_cell(row['val_str'])} "
+            f"| {_cell(row['pcis_str'])} "
             f"| |\n"
         )
     
@@ -1537,9 +1980,11 @@ def generate_scheme_of_work(subject, grade, term="1"):
     }
 
 
-def generate_rubric(subject, grade, assessment_type="performance"):
-    """Generate a CBC auto-generated rubric template from curriculum database."""
-    curriculum = query_curriculum(subject, grade)
+def generate_rubric(subject, grade, assessment_type="performance", topic=None):
+    """Generate a CBC auto-generated rubric template from curriculum database.
+    topic: optional sub-strand/topic hint to find the best-matching curriculum entry.
+    """
+    curriculum = query_curriculum(subject, grade, substrand_hint=topic or None)
     
     if not curriculum:
         return {
@@ -1551,30 +1996,46 @@ def generate_rubric(subject, grade, assessment_type="performance"):
     current_year = datetime.today().year
     date_str = datetime.today().strftime('%d/%m/%Y')
     
-    strand = curriculum.get('strand', '')
-    substrand = curriculum.get('substrand', '')
+    strand = _clean_strand_name(curriculum.get('strand', '') or '')
+    _sub_num = curriculum.get('substrand_number', '').strip()
+    _sub_name = curriculum.get('substrand', '').strip()
+    substrand = _clean_strand_name(_combine_substrand(_sub_num, _sub_name))
     learning_outcomes = curriculum.get('learning_outcomes', [])
     raw_competencies = curriculum.get('core_competencies', [])
     raw_values = curriculum.get('values', [])
-    
-    # Filter stubs
-    learning_outcomes = [o for o in learning_outcomes if len(o.strip()) > 10]
-    
+
+    # Filter stubs — strip PDF preamble headers from SLOs
+    learning_outcomes = [_clean_slo(o) for o in learning_outcomes]
+    learning_outcomes = [o for o in learning_outcomes if _is_valid_slo(o)]
+
     # Classify competency data
     competencies, values, links, pcis = _classify_competency_items(
         raw_competencies + raw_values
     )
     if not competencies:
-        competencies = ["Critical thinking and problem solving",
-                        "Communication and collaboration",
-                        "Self-efficacy"]
+        competencies = ["Critical Thinking and Problem Solving",
+                        "Communication and Collaboration",
+                        "Self-Efficacy"]
     if not values:
         values = ["Respect", "Responsibility", "Unity"]
     if not pcis:
-        pcis = ["As applicable"]
-    
+        pcis = _generate_pcis(strand, substrand, subject, [])
+        if not pcis:
+            pcis = ["As applicable"]
+
     # Extract clean strand topic
     strand_topic = _extract_strand_topic(strand) or subject
+
+    # Enhance competencies and values with subject/topic context
+    # Strip leading substrand numbers (e.g. '6.3 Alcohol...' → 'Alcohol...') for clean topic text
+    _comp_topic = re.sub(
+        r'^\d+(?:\.\d+)*\s*',
+        '',
+        (topic or substrand or strand_topic)
+    ).strip() or strand_topic
+    # Always rebuild from the contextual pool so every rubric shows explanatory context
+    competencies = _supplement_competencies([], subject, _comp_topic, minimum=3)
+    values = _generate_values_with_context(values, subject, _comp_topic, substrand)
     
     # Determine grade-based duration
     grade_num = int(re.search(r'\d+', grade).group()) if re.search(r'\d+', grade) else 7
@@ -1604,15 +2065,91 @@ def generate_rubric(subject, grade, assessment_type="performance"):
     criteria = criteria[:4]  # Cap at 4 criteria
     if not criteria:
         criteria = [f"Demonstrate understanding of {strand_topic}"]
+
+    # Supplement if DB yielded fewer than 3 criteria
+    if len(criteria) < 3:
+        # Strip leading substrand number (e.g. "6.3 Alcohol..." → "Alcohol...")
+        _sub_plain = re.sub(r'^\d+(?:\.\d+)*\s*', '', substrand).strip() or substrand
+        combined_topic = (substrand + ' ' + subject).lower()
+        supplement_pool: list[str] = []
+        if any(k in combined_topic for k in ['cre', 'christian', 'ire', 'islamic', 'religion', 'moral', 'faith']):
+            supplement_pool = [
+                f"Explain the Christian/moral teaching on {_sub_plain}",
+                f"Analyse the consequences of {_sub_plain.lower()} and suggest responsible alternatives",
+                f"Apply Christian/moral values to make informed decisions regarding {_sub_plain.lower()}",
+            ]
+        elif any(k in combined_topic for k in ['agri', 'farm', 'crop', 'soil', 'livestock', 'poultry', 'nutrition']):
+            supplement_pool = [
+                f"Describe the importance of {_sub_plain.lower()} in sustainable farming",
+                f"Demonstrate correct procedures for {_sub_plain.lower()}",
+                f"Evaluate the impact of {_sub_plain.lower()} on community food security",
+            ]
+        elif any(k in combined_topic for k in ['math', 'mathemat', 'algebra', 'geometry', 'number', 'fraction', 'statistic']):
+            supplement_pool = [
+                f"Solve practical problems involving {_sub_plain.lower()}",
+                f"Apply properties of {_sub_plain.lower()} to real-world contexts",
+                f"Communicate mathematical reasoning about {_sub_plain.lower()} clearly",
+            ]
+        elif any(k in combined_topic for k in ['english', 'read', 'writ', 'grammar', 'listening', 'speaking']):
+            supplement_pool = [
+                f"Apply language skills to comprehend texts on {_sub_plain.lower()}",
+                f"Produce structured written work demonstrating understanding of {_sub_plain.lower()}",
+                f"Communicate ideas about {_sub_plain.lower()} accurately and coherently",
+            ]
+        elif any(k in combined_topic for k in ['science', 'biology', 'physics', 'chemistry', 'environment']):
+            supplement_pool = [
+                f"Conduct simple experiments/observations related to {_sub_plain.lower()}",
+                f"Explain scientific principles underlying {_sub_plain.lower()}",
+                f"Evaluate real-world applications of knowledge about {_sub_plain.lower()}",
+            ]
+        else:
+            supplement_pool = [
+                f"Demonstrate understanding of key concepts in {_sub_plain.lower()}",
+                f"Apply knowledge of {_sub_plain.lower()} to practical situations",
+                f"Evaluate the relevance of {_sub_plain.lower()} in everyday life",
+            ]
+        for s in supplement_pool:
+            if len(criteria) >= 3:
+                break
+            if s not in criteria:
+                criteria.append(s)
     
     # Generate descriptors for each criterion at each level
+    _ATTITUDINAL_VERBS = {
+        'appreciate', 'value', 'respect', 'acknowledge', 'recognise', 'recognize',
+        'accept', 'embrace', 'demonstrate', 'show', 'exhibit', 'display',
+        'care', 'support', 'believe', 'commit', 'advocate',
+    }
+
     def _descriptors(criterion):
         """Generate 4 performance-level descriptors for a criterion."""
+        subject_lower = subject.lower()
+        is_religious = any(k in subject_lower for k in ['cre', 'ire', 'christian', 'islamic', 'religion', 'moral'])
         # Extract the main verb (skip leading articles/prepositions)
         words = criterion.split()
         verb = words[0].lower() if words else "demonstrate"
         rest = " ".join(words[1:]) if len(words) > 1 else strand_topic
-        
+
+        # Attitudinal / affective verbs — accuracy language makes no sense;
+        # use frequency/consistency language instead
+        if verb in _ATTITUDINAL_VERBS:
+            if is_religious:
+                ee = (f"Consistently and enthusiastically demonstrates {rest} through independent actions "
+                      f"and reflective writing, clearly grounded in personal faith and conviction")
+                me = (f"Regularly demonstrates {rest} in class activities and interactions, "
+                      f"connecting it appropriately to Christian/moral principles")
+                ae = (f"Sometimes demonstrates {rest} when prompted or guided by the teacher; "
+                      f"basic understanding of the value is evident")
+                be = (f"Rarely demonstrates {rest}; requires significant encouragement, "
+                      f"scaffolding and teacher support")
+            else:
+                ee = (f"Consistently and enthusiastically demonstrates {rest} "
+                      f"through independent and creative expression in all tasks")
+                me = (f"Regularly demonstrates {rest} in own work and interactions with peers")
+                ae = (f"Sometimes demonstrates {rest} when prompted or guided by the teacher")
+                be = (f"Rarely demonstrates {rest}; requires significant encouragement and support")
+            return ee, me, ae, be
+
         # Conjugate: add 's' for third-person, handle common endings
         if verb.endswith(('sh', 'ch', 'ss', 'x', 'z')):
             verb_s = verb + "es"
@@ -1620,11 +2157,21 @@ def generate_rubric(subject, grade, assessment_type="performance"):
             verb_s = verb[:-1] + "ies"
         else:
             verb_s = verb + "s"
-        
-        ee = f"Independently and creatively {verb_s} {rest} with exceptional accuracy and originality"
-        me = f"Correctly {verb_s} {rest} as required with consistency"
-        ae = f"Partially {verb_s} {rest} with teacher guidance and support"
-        be = f"Shows minimal ability to {verb} {rest}; requires significant support"
+
+        if is_religious:
+            ee = (f"Independently {verb_s} {rest} and applies Christian/moral values in daily life "
+                  f"with clear evidence of personal reflection and conviction")
+            me = (f"Correctly {verb_s} {rest} and demonstrates understanding of the relevant "
+                  f"moral/Christian principle with appropriate examples")
+            ae = (f"Partially {verb_s} {rest} with teacher guidance; basic moral understanding "
+                  f"evident but lacking depth")
+            be = (f"Shows minimal ability to {verb} {rest}; requires significant guidance "
+                  f"and scaffolding to engage with the topic")
+        else:
+            ee = f"Independently and creatively {verb_s} {rest} with exceptional accuracy and originality"
+            me = f"Correctly {verb_s} {rest} as required with consistency"
+            ae = f"Partially {verb_s} {rest} with teacher guidance and support"
+            be = f"Shows minimal ability to {verb} {rest}; requires significant support"
         return ee, me, ae, be
     
     # --- Build the rubric document ---
@@ -1677,7 +2224,26 @@ AUTO-GENERATED ASSESSMENT RUBRIC
     
     # PCIs section
     pci_lines = "\n".join([f"- {p}" for p in pcis[:3]])
-    
+
+    # Build subject-specific KICD resources line
+    subj_lower = subject.lower()
+    if any(k in subj_lower for k in ['cre', 'christian']):
+        kicd_resource = f"KICD CRE Learner's Book {grade}, KICD CRE Teacher's Guide {grade}"
+    elif any(k in subj_lower for k in ['ire', 'islamic']):
+        kicd_resource = f"KICD IRE Learner's Book {grade}, KICD IRE Teacher's Guide {grade}"
+    elif 'math' in subj_lower:
+        kicd_resource = f"KICD Mathematics Learner's Book {grade}, KICD Mathematics Teacher's Guide {grade}"
+    elif 'english' in subj_lower:
+        kicd_resource = f"KICD English Learner's Book {grade}, KICD English Teacher's Guide {grade}"
+    elif 'science' in subj_lower:
+        kicd_resource = f"KICD Integrated Science Learner's Book {grade}, KICD Integrated Science Teacher's Guide {grade}"
+    elif 'social' in subj_lower:
+        kicd_resource = f"KICD Social Studies Learner's Book {grade}, KICD Social Studies Teacher's Guide {grade}"
+    elif 'agri' in subj_lower:
+        kicd_resource = f"KICD Agriculture & Nutrition Learner's Book {grade}, KICD Agriculture & Nutrition Teacher's Guide {grade}"
+    else:
+        kicd_resource = f"KICD {subject} Learner's Book {grade}, KICD {subject} Teacher's Guide {grade}"
+
     rubric += f"""
 
 CORE COMPETENCIES ASSESSED
@@ -1694,6 +2260,13 @@ PCIs INTEGRATED
 {'=' * 60}
 
 {pci_lines}
+
+KICD APPROVED RESOURCES
+{'=' * 60}
+
+- {kicd_resource}
+- Kenya Institute of Curriculum Development (KICD) website: www.kicd.ac.ke
+- Relevant support materials approved by KICD for {subject} {grade}
 
 TEACHER FEEDBACK SECTION
 {'=' * 60}
