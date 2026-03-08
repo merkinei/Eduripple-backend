@@ -548,6 +548,53 @@ def validate_input(prompt, subject=None, grade=None, max_prompt_length=2000):
     return {"valid": len(errors) == 0, "errors": errors}
 
 # --- Subject/Grade Parser ---
+def _correct_prompt(text):
+    """Silently correct common spelling mistakes in educational prompts (Rule 1)."""
+    if not text:
+        return text
+    corrections = {
+        # subject name typos
+        r'\bintegerated\b': 'integrated', r'\bintergrated\b': 'integrated',
+        r'\bagriculuture\b': 'agriculture', r'\bagriculture\b': 'agriculture',
+        r'\bkiswali\b': 'kiswahili', r'\bmathematcs\b': 'mathematics',
+        r'\bmathematics\b': 'mathematics', r'\bsciens\b': 'science',
+        r'\bengilsh\b': 'english', r'\benglsh\b': 'english',
+        # strand/topic typos
+        r'\bconservtion\b': 'conservation', r'\bconservaton\b': 'conservation',
+        r'\blessoon\b': 'lesson', r'\blessom\b': 'lesson',
+        r'\bsubstrand\b': 'sub-strand', r'\bsubstarnds\b': 'sub-strands',
+        r'\blearinng\b': 'learning', r'\blearnnig\b': 'learning',
+        r'\bcreation\b': 'creation', r'\bxreation\b': 'creation',
+        r'\baccounts\b': 'accounts', r'\bacxounts\b': 'accounts',
+        r'\benviroment\b': 'environment', r'\benvironment\b': 'environment',
+        r'\bnurtition\b': 'nutrition', r'\bnutrition\b': 'nutrition',
+        r'\blessonplan\b': 'lesson plan',
+    }
+    result = text
+    for pattern, replacement in corrections.items():
+        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+    return result
+
+
+def _extract_substrand_hint(prompt):
+    """Extract explicit sub-strand hint from the prompt, if given."""
+    if not prompt:
+        return ""
+    m = re.search(
+        r'\bunder\s+sub-?strand\s+([\w\s\-]+?)(?:\s*$|\.|,|;|\band\b|\bfor\b|\bon\b)',
+        prompt, re.IGNORECASE
+    )
+    if m:
+        return m.group(1).strip().title()
+    m = re.search(
+        r'\bsub-?strand[:\s]+([\w\s\-]+?)(?:\s*$|\.|,|;)',
+        prompt, re.IGNORECASE
+    )
+    if m:
+        return m.group(1).strip().title()
+    return ""
+
+
 def parse_subject_and_grade(prompt):
     grade_match = re.search(r"grade\s*\d+", prompt.lower())
     
@@ -593,16 +640,40 @@ def _fuzzy_match_subject(prompt):
         if all(kw in lowered for kw in keywords):
             return canonical
     
-    # Single-word subject detection (CRE, IRE, Science)
+    # Single-word subject detection (CRE, IRE, Science, Agriculture alone)
     single_subjects = {
         "cre": "CRE",
         "ire": "IRE",
         "science": "INTEGRATED SCIENCE",
+        "agriculture": "AGRICULTURE AND NUTRITION",
+        "agri": "AGRICULTURE AND NUTRITION",
     }
     for keyword, canonical in single_subjects.items():
         if re.search(r'\b' + keyword + r'\b', lowered):
             return canonical
-    
+
+    # Strand/topic-based subject inference
+    # When no subject is named but a known strand is mentioned, infer the subject
+    strand_subject_map = [
+        (["conservation of resources", "soil conservation", "crop production", "livestock",
+          "agroforestry", "food and nutrition", "farm tools"], "AGRICULTURE AND NUTRITION"),
+        (["algebra", "fractions", "geometry", "statistics", "quadratic", "trigonometry",
+          "pythagoras", "matrices", "vectors", "probability", "arithmetic"], "MATHEMATICS"),
+        (["reading", "writing", "grammar", "comprehension", "oral skills", "poetry",
+          "prose", "vocabulary", "composition", "listening"], "ENGLISH"),
+        (["cells", "photosynthesis", "respiration", "ecosystem", "electricity", "force",
+          "periodic table", "acids", "bases", "motion", "energy", "genetics"], "INTEGRATED SCIENCE"),
+        (["map reading", "physical environment", "population", "economic activities",
+          "civics", "citizenship", "history", "geography", "government"], "SOCIAL STUDIES"),
+        (["drawing", "painting", "sculpture", "drama", "music", "dance", "craft",
+          "creative arts", "visual arts", "performing arts"], "CREATIVE ARTS AND SPORTS"),
+        (["woodwork", "metalwork", "electronics", "technical drawing", "electricity",
+          "leatherwork", "pre-technical"], "PRE-TECHNICAL STUDIES"),
+    ]
+    for strand_keywords, canonical in strand_subject_map:
+        if any(kw in lowered for kw in strand_keywords):
+            return canonical
+
     return ""
 
 
@@ -2101,7 +2172,7 @@ def cbc_assistant():
         if not data:
             return jsonify({"success": False, "error": "Invalid request format"}), 400
         
-        prompt = data.get('prompt', '').strip()
+        prompt = _correct_prompt(data.get('prompt', '').strip())
         
         # Validate input
         validation = validate_input(prompt)
@@ -2110,15 +2181,19 @@ def cbc_assistant():
         
         intent = classify_intent(prompt)
         
-        # Parse subject and grade from prompt
+        # Parse subject, grade, and optional sub-strand hint from prompt
         grade_match, subject_match = parse_subject_and_grade(prompt)
+        substrand_hint = _extract_substrand_hint(prompt)
+        
+        # Build the topic hint: prefer explicit substrand, else use full prompt
+        lesson_topic = substrand_hint or prompt
         
         # Get curated resources for the topic
         curated_resources = get_curated_resources(subject_match or "English", grade_match or "Grade 7", prompt)
         
         # Generate using templates based on intent
         if intent == "lesson_plan":
-            result = generate_lesson_plan(subject_match or "English", grade_match or "Grade 7", prompt)
+            result = generate_lesson_plan(subject_match or "English", grade_match or "Grade 7", lesson_topic)
             answer = result["content"] if result["success"] else f"Error: {result['error']}'"
             # If multi-lesson, include structured data for frontend tabs
             if result.get("success") and result.get("num_lessons", 1) > 1:

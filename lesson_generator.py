@@ -5,8 +5,56 @@ import math
 from datetime import datetime, timedelta
 from curriculum_db import get_curriculum
 
+# ---------------------------------------------------------------------------
+# Approved CBC Core Competencies (CBC Policy 2017) — Rule 4
+# ---------------------------------------------------------------------------
+_APPROVED_COMPETENCIES = [
+    ("communication",     "Communication and Collaboration"),
+    ("critical",          "Critical Thinking and Problem Solving"),
+    ("creat",             "Creativity and Imagination"),
+    ("citizen",           "Citizenship"),
+    ("digital",           "Digital Literacy"),
+    ("learning to learn", "Learning to Learn"),
+    ("self-efficac",      "Self-Efficacy"),
+    ("efficac",           "Self-Efficacy"),
+]
 
-def query_curriculum(subject, grade):
+# Approved CBC Values (CBC Policy 2017) — Rule 4
+_APPROVED_VALUES = [
+    "Respect", "Responsibility", "Integrity", "Unity",
+    "Peace", "Love", "Patriotism", "Social Justice",
+]
+
+
+def _filter_to_approved_competencies(raw_list):
+    """Map raw DB competency strings to only the 7 approved CBC core competencies."""
+    seen = set()
+    result = []
+    for raw in (raw_list or []):
+        lowered = raw.lower()
+        for keyword, canonical in _APPROVED_COMPETENCIES:
+            if keyword in lowered and canonical not in seen:
+                seen.add(canonical)
+                result.append(canonical)
+                break
+    return result or ["Communication and Collaboration", "Critical Thinking and Problem Solving", "Self-Efficacy"]
+
+
+def _filter_to_approved_values(raw_list):
+    """Filter raw value strings to only the 8 approved CBC values."""
+    seen = set()
+    result = []
+    for raw in (raw_list or []):
+        lowered = raw.lower()
+        for canonical in _APPROVED_VALUES:
+            if canonical.lower() in lowered and canonical not in seen:
+                seen.add(canonical)
+                result.append(canonical)
+                break
+    return result or ["Respect", "Responsibility"]
+
+
+def query_curriculum(subject, grade, substrand_hint=None):
     """Query curriculum database for subject and grade."""
     # Normalize grade
     grade_normalized = f"Grade {grade}" if grade and not grade.startswith("Grade") else grade
@@ -16,21 +64,28 @@ def query_curriculum(subject, grade):
     if not all_curriculum:
         return None
     
-    # Map common subject name variations
+    # Map common subject name variations to actual DB subject names (with spaces, as stored)
     subject_map = {
         "mathematics": "maths",
         "math": "maths",
-        "science": "intergrated_science",
-        "integrated science": "intergrated_science",
-        "social studies": "social_studies",
-        "creative arts": "creative_arts",
-        "agriculture": "agriculture_and_nutrition",
-        "agriculture and nutrition": "agriculture_and_nutrition",
-        "creative arts and sports": "creative_arts_and_sports",
-        "pre-technical studies": "pre_technical_studies",
-        "pre technical studies": "pre_technical_studies",
-        "indigenous languages": "indigenious_languages",
-        "indigenous language": "indigenious_languages",
+        "science": "intergrated science",
+        "integrated science": "intergrated science",
+        "intergrated science": "intergrated science",
+        "social studies": "social studies",
+        "creative arts": "creative arts",
+        "creative arts and sports": "creative arts and sports",
+        "agriculture": "agriculture and nutrition",
+        "agriculture and nutrition": "agriculture and nutrition",
+        "agriculture and nutrion": "agriculture and nutrion",  # DB typo for Grade 8
+        "pre-technical studies": "pre technical studies",
+        "pre technical studies": "pre technical studies",
+        "indigenous languages": "indigenious languages",
+        "indigenous language": "indigenious languages",
+        "indigenious languages": "indigenious languages",
+        "cre": "cre",
+        "christian religious education": "cre",
+        "ire": "ire",
+        "islamic religious education": "ire",
     }
     
     subject_normalized = subject.lower()
@@ -57,8 +112,26 @@ def query_curriculum(subject, grade):
         if (any(word in entry_subject for word in subject_normalized.split()) and
             entry['grade'].lower() == grade_normalized.lower()):
             return entry
-    
+
     return None
+
+
+def _find_best_curriculum_entry(all_entries, substrand_hint):
+    """Given a list of entries (all same subject+grade), pick the one whose
+    substrand best matches the substrand_hint.  Falls back to first entry."""
+    if not all_entries:
+        return None
+    if not substrand_hint:
+        return all_entries[0]
+    hint_lower = substrand_hint.lower()
+    hint_words = [w for w in hint_lower.split() if len(w) > 3]
+    best, best_score = all_entries[0], 0
+    for entry in all_entries:
+        sub = entry.get('substrand', '').lower()
+        score = sum(1 for w in hint_words if w in sub)
+        if score > best_score:
+            best, best_score = entry, score
+    return best
 
 
 def _extract_lesson_count(strand_text):
@@ -194,6 +267,466 @@ def _distribute_items(items, num_buckets):
     return buckets
 
 
+# ---------------------------------------------------------------------------
+# Topic-aware generators for PCIs, cross-curricular links, resources
+# ---------------------------------------------------------------------------
+
+_STUB_ACTIVITY = re.compile(
+    r'^(learners?\s+are\s+guided\s+to\s*:?|the\s+learner\s+is\s+guided\s+to\s*:?'
+    r'|learners?\s+guided\s+to\s*:?)$',
+    re.IGNORECASE,
+)
+
+
+def _generate_lesson_resources(subject, grade, topic, substrand):
+    """Return topic-specific learning resources (max 7)."""
+    g = re.search(r'\d+', grade)
+    grade_num = g.group() if g else '8'
+    subj_title = re.sub(r'\s+and\s+', ' & ', subject, flags=re.IGNORECASE).title()
+    combined = (topic or substrand or '').lower()
+
+    resources = [
+        f"KICD {subj_title} Learner's Book Grade {grade_num}",
+        f"KICD {subj_title} Teacher's Guide Grade {grade_num}",
+    ]
+
+    topic_extras = [
+        (['soil conserv', 'soil erosion', 'conservation of resourc'], [
+            'Soil samples from different environments',
+            'Cardboard/cartons for farm model construction',
+            'Photos comparing eroded vs conserved land',
+            'Water for soil erosion simulation',
+        ]),
+        (['water harvest', 'water storage', 'irrigation'], [
+            'Rain gauge and measuring cylinders',
+            'Water harvesting model or equipment',
+            'Diagrams of water storage structures',
+        ]),
+        (['crop produc', 'kitchen garden', 'seed', 'planting', 'backyard garden'], [
+            'Seed samples and seedling trays',
+            'Soil and compost samples',
+            'Gardening tools (hoe, trowel)',
+            'Photos of different crop varieties',
+        ]),
+        (['poultry', 'livestock', 'animal'], [
+            'Photos/diagrams of poultry housing types',
+            'Feed and water trough samples',
+            'Animal health management charts',
+        ]),
+        (['pest', 'disease control', 'weed'], [
+            'Pest and disease identification photo charts',
+            'Empty pesticide containers (labelled)',
+            'Diseased vs healthy crop specimen photos',
+        ]),
+        (['fraction', 'decimal', 'percent', 'ratio'], [
+            'Fraction tiles and number lines',
+            'Pie charts and fraction diagrams',
+        ]),
+        (['algebra', 'equation', 'linear', 'quadratic'], [
+            'Algebra tiles and graph paper',
+            'Worked examples chart',
+        ]),
+        (['geometr', 'angle', 'shape', 'area', 'volume'], [
+            'Geometric shape models (3D)',
+            'Compass, ruler and protractor',
+        ]),
+        (['cell', 'microscop', 'organism'], [
+            'Microscope and prepared slides',
+            'Cell structure diagrams/charts',
+        ]),
+        (['ecosystem', 'biodiversit'], [
+            'Ecosystem charts and diagrams',
+            'Local plant/animal specimens or photos',
+        ]),
+        (['photosynthes', 'respiration', 'plant biologe'], [
+            'Potted plants and green leaves',
+            'Iodine solution and test tubes',
+        ]),
+        (['reading', 'comprehension', 'intensive reading'], [
+            'Printed reading passages',
+            'Comprehension question worksheets',
+            'Dictionary and thesaurus',
+        ]),
+        (['writing', 'essay', 'composition', 'grammar'], [
+            'Sample essays and writing prompt cards',
+            'Writing rubric checklist',
+        ]),
+        (['map', 'topograph', 'map reading'], [
+            'Topographic and political maps',
+            'Atlas and compass',
+            'Map reading worksheets',
+        ]),
+        (['conservation', 'environment', 'climate change'], [
+            'Environmental conservation charts and posters',
+            'Photos of natural resources (before/after degradation)',
+        ]),
+    ]
+
+    for keywords, extras in topic_extras:
+        if any(kw in combined for kw in keywords):
+            resources.extend(extras)
+            break
+
+    resources.extend(['Chalkboard/whiteboard and chalk/markers', 'Learner exercise books'])
+    return list(dict.fromkeys(resources))[:7]
+
+
+def _generate_pcis(strand, substrand, topic, pcis_raw):
+    """Expand bare DB PCI keywords or generate topic-specific PCIs."""
+    combined = (strand + ' ' + substrand + ' ' + (topic or '')).lower()
+
+    pci_topics = [
+        (['soil conserv', 'soil erosion', 'conservation of resourc'], [
+            'Environmental Education — effects of soil erosion on agricultural productivity',
+            'Climate Change — relationship between deforestation and soil degradation',
+            'Food Security — soil conservation as a foundation for sustainable agriculture',
+        ]),
+        (['water harvest', 'water storage', 'irrigation'], [
+            'Environmental Education — sustainable water use and conservation',
+            'Climate Change — water scarcity and shifting rainfall patterns',
+            'Food Security — water harvesting to ensure reliable crop production',
+        ]),
+        (['crop produc', 'kitchen garden', 'food produc'], [
+            'Food Security — importance of crop production for household and national food supply',
+            'Environmental Education — organic farming and reduction of agrochemical use',
+            'Health Education — nutritional benefits of home-grown vegetables',
+        ]),
+        (['poultry', 'livestock'], [
+            'Food Security — poultry and livestock as sources of protein and household income',
+            'Health Education — hygiene in handling and consuming animal products',
+            'Financial Literacy — small-scale animal farming as an income-generating activity',
+        ]),
+        (['pest', 'disease control'], [
+            'Health Education — safe and responsible use of pesticides',
+            'Environmental Education — effects of pesticides on soil health and biodiversity',
+            'Food Security — managing crop losses caused by pests and diseases',
+        ]),
+        (['environment', 'conservation', 'climate', 'ecosystem', 'biodiversit'], [
+            'Environmental Education — importance of natural resource conservation',
+            'Climate Change — human activities and their impact on the environment',
+            'Citizenship — personal and community responsibility for environmental stewardship',
+        ]),
+        (['fraction', 'algebra', 'geometr', 'statistic', 'mathemat'], [
+            'Financial Literacy — applying mathematics in everyday budgeting and trade',
+            'Digital Literacy — use of calculators and digital tools in mathematical problem solving',
+            'Life Skills — logical and numerical thinking in daily decision making',
+        ]),
+        (['reading', 'writing', 'grammar', 'composition', 'english', 'language'], [
+            'Digital Literacy — using digital platforms for reading and written communication',
+            'Life Skills — effective communication across personal and professional contexts',
+            'Citizenship — responsible and respectful use of language in public discourse',
+        ]),
+        (['health', 'nutrition', 'diet', 'hygiene'], [
+            'Health Education — balanced diet, hygiene and disease prevention',
+            'Life Skills — personal health management and informed decision making',
+            'Social Justice — equitable access to food and health services',
+        ]),
+        (['cre', 'ire', 'creation', 'faith', 'religion', 'moral'], [
+            'Moral and Spiritual Values — integrity, honesty and care for others',
+            'Citizenship — role of faith communities in social service and cohesion',
+            'Life Skills — applying moral values in everyday situations',
+        ]),
+    ]
+
+    expanded = [p for p in (pcis_raw or []) if len(p.strip()) > 25]
+    if len(expanded) < 2:
+        for keywords, statements in pci_topics:
+            if any(kw in combined for kw in keywords):
+                for stmt in statements:
+                    if stmt not in expanded:
+                        expanded.append(stmt)
+                if len(expanded) >= 3:
+                    break
+    if not expanded:
+        expanded = [
+            'Life Skills — applying academic knowledge to solve real-life challenges',
+            'Citizenship — contributing positively to community and the environment',
+        ]
+    return list(dict.fromkeys(expanded))[:4]
+
+
+def _generate_cross_links(subject, strand, substrand, topic, links_raw):
+    """Generate cross-curricular subject links when DB has none or incomplete data."""
+    good_raw = [l for l in (links_raw or []) if len(l.strip()) > 20]
+    if len(good_raw) >= 2:
+        return good_raw[:4]
+
+    combined = (subject + ' ' + strand + ' ' + substrand + ' ' + (topic or '')).lower()
+
+    links_pool = [
+        (['soil conserv', 'crop', 'farm', 'water harvest', 'livestock', 'poultry', 'agri'], [
+            'Integrated Science — soil composition, water cycle and plant biology',
+            'Social Studies — land use, environmental conservation and food security',
+            'Mathematics — calculating land area, crop yields and farm budgets',
+        ]),
+        (['nutrition', 'food', 'diet'], [
+            'Integrated Science — digestion and role of nutrients in the body',
+            'Health Education — balanced diet and disease prevention',
+            'Mathematics — calculating dietary portions and caloric values',
+        ]),
+        (['fraction', 'decimal', 'ratio', 'algebra', 'geometr', 'statistic', 'mathemat'], [
+            'Integrated Science — measurement, scientific data collection and analysis',
+            'Social Studies — interpreting population statistics and geographic data',
+            'English — reading and interpreting mathematical word problems',
+        ]),
+        (['reading', 'writing', 'grammar', 'comprehension', 'composition', 'english'], [
+            'Social Studies — using literacy to access historical and civic content',
+            'Integrated Science — reading and interpreting scientific texts',
+            'Kiswahili — comparing language structures and written expression',
+        ]),
+        (['science', 'ecosystem', 'cell', 'photosynthes', 'chemical', 'force', 'energy'], [
+            'Mathematics — measurements, calculations and scientific data analysis',
+            'Agriculture and Nutrition — scientific principles applied in food production',
+            'Social Studies — human impact on the natural environment',
+        ]),
+        (['map', 'geograph', 'population', 'history', 'civic', 'social studies'], [
+            'Integrated Science — physical environment and natural resources',
+            'Mathematics — reading maps, graphs and statistical data',
+            'English — research skills and structured report writing',
+        ]),
+    ]
+
+    result = []
+    for keywords, link_list in links_pool:
+        if any(kw in combined for kw in keywords):
+            result.extend(link_list)
+            break
+    if not result:
+        result = [
+            'English — communication, reading and writing skills',
+            'Mathematics — numerical reasoning and quantitative analysis',
+        ]
+    return list(dict.fromkeys(result))[:4]
+
+
+def _supplement_competencies(approved, subject, topic, minimum=3):
+    """Supplement approved CBC competencies to reach minimum count.
+    All additions are drawn from the 7 approved CBC competencies only."""
+    if len(approved) >= minimum:
+        return approved[:5]
+
+    combined = (subject + ' ' + (topic or '')).lower()
+
+    if any(k in combined for k in ['soil', 'farm', 'crop', 'conserv', 'agri', 'water', 'poultry', 'livestock']):
+        pool = [
+            'Critical Thinking and Problem Solving — evaluating different soil and land conservation methods',
+            'Communication and Collaboration — presenting group project findings to the class',
+            'Citizenship — taking responsibility for environmental and agricultural conservation',
+            'Learning to Learn — researching conservation techniques using digital and print media',
+        ]
+    elif any(k in combined for k in ['math', 'algebra', 'fraction', 'geometr', 'statistic']):
+        pool = [
+            'Critical Thinking and Problem Solving — applying mathematical reasoning to real-world problems',
+            'Communication and Collaboration — explaining mathematical solutions clearly to peers',
+            'Digital Literacy — using calculators and technology in mathematical computation',
+            'Learning to Learn — developing personal strategies for problem solving',
+        ]
+    elif any(k in combined for k in ['reading', 'writing', 'english', 'language', 'grammar', 'comprehension']):
+        pool = [
+            'Communication and Collaboration — expressing ideas clearly in speech and writing',
+            'Critical Thinking and Problem Solving — analysing and drawing meaning from texts',
+            'Creativity and Imagination — creative writing and storytelling',
+            'Digital Literacy — using digital platforms for reading, writing and research',
+        ]
+    elif any(k in combined for k in ['science', 'biology', 'chemistry', 'physics', 'ecosystem', 'cell']):
+        pool = [
+            'Critical Thinking and Problem Solving — designing, conducting and interpreting experiments',
+            'Communication and Collaboration — documenting and presenting scientific findings',
+            'Digital Literacy — using technology for research and data collection',
+            'Learning to Learn — developing scientific enquiry and investigation skills',
+        ]
+    else:
+        pool = [
+            'Critical Thinking and Problem Solving — analysing and evaluating real-world issues',
+            'Communication and Collaboration — sharing ideas effectively in group settings',
+            'Learning to Learn — developing study strategies and applying knowledge to new contexts',
+            'Citizenship — contributing responsibly to community and the environment',
+        ]
+
+    result = list(approved)
+    seen = {c.split(' — ')[0].strip() for c in result}
+    for candidate in pool:
+        base = candidate.split(' — ')[0].strip()
+        if base not in seen and len(result) < minimum:
+            result.append(candidate)
+            seen.add(base)
+    return result[:5]
+
+
+def _generate_step_learner_mirror(step_text, topic):
+    """Convert a teacher-instruction step into the corresponding specific learner activity."""
+    text = re.sub(r'^step\s*\d+\s*:\s*', '', step_text, flags=re.IGNORECASE).strip()
+    tl = text.lower()
+
+    if re.search(r'search\s+and\s+share', tl):
+        obj = re.search(r'information\s+on\s+(.+?)(?:\s+using|\s+from|\s+in|$)', tl)
+        what = obj.group(1).strip() if obj else topic
+        return f"Search for information on {what} using digital devices and textbooks; share findings with the class"
+
+    if re.search(r'conduct\s+(an?\s+)?project|construct|papier', tl):
+        obj = re.search(r'(?:construct|conduct\s+project\s*:?\s*)(.{3,50}?)(?:\s+using|\s+in\s+group|$)', tl)
+        what = obj.group(1).strip() if obj else f"the model related to {topic}"
+        return f"Work in groups to construct {what}; assign roles and complete the task collaboratively"
+
+    if re.search(r'\bbuild\b|\bmake\s+a\b|\bcreate\s+a\b|\bdesign\s+a\b', tl):
+        obj = re.search(r'(?:build|make|create|design)\s+(a\s+.{3,40}?)(?:\s+using|\s+in\s+group|$)', tl)
+        what = obj.group(1).strip() if obj else f"model related to {topic}"
+        return f"Work in groups to {obj.group(0).strip() if obj else 'build the model'}; collaborate and complete all steps"
+
+    if re.search(r'conduct\s+(an?\s+)?experiment|set\s+up', tl):
+        return "Follow the experimental procedure step by step; record all observations in exercise book"
+
+    if re.search(r'observe\s+and\s+record|observe\s+', tl):
+        return "Carefully observe and record findings in exercise book; compare results with partner"
+
+    if re.search(r'discuss\s+in\s+groups?|group\s+discuss|guide\s+.*discuss', tl):
+        return "Discuss in groups; agree on key points and nominate a spokesperson to share with the class"
+
+    if re.search(r'\bpresent\b|\bdisplay\s+work\b', tl):
+        return "Present group findings to the class; listen to and give feedback on other groups' presentations"
+
+    if re.search(r'\bdraw\b|\bsketch\b|\bdiagram\b', tl):
+        return "Draw and label the required diagram neatly in exercise book"
+
+    if re.search(r'\bidentif\b|\blist\s+the\b|\bname\s+the\b', tl):
+        return "Identify and write down the required items in exercise book; compare answers with a partner"
+
+    if re.search(r'read\s+and|read\s+the|\breading\b', tl):
+        return "Read the assigned passage carefully; answer comprehension questions in full sentences"
+
+    if re.search(r'\bsolv\b|\bcalculat\b|\bcomput\b', tl):
+        return "Solve the given problems independently; compare working with a partner and correct errors"
+
+    if re.search(r'plot\s+a\s+graph|draw\s+a\s+graph|number\s+line', tl):
+        return "Plot the data on graph paper; label axes correctly and verify with a partner"
+
+    if re.search(r'role\s+play|dramatiz|act\s+out', tl):
+        return "Participate actively in the role play; reflect on the experience and share key lessons"
+
+    if re.search(r'write\s+a|compose\s+a|draft\s+a', tl):
+        return "Write the required piece independently; peer-edit for clarity and correctness"
+
+    # Fallback: derive first verb phrase from step text
+    action = re.match(r'^([A-Z][a-z]+(?:\s+[a-z]+){0,4})', text)
+    if action:
+        return f"Participate by {action.group(1).lower()}; record findings and share outcomes with peers"
+    return "Actively engage with the activity; record findings and discuss outcomes with the class"
+
+
+def _generate_extended_activities(subject, topic, substrand, experiences=None):
+    """Return (fast_learner_activity, support_activity) specific to topic."""
+    combined = (topic + ' ' + (substrand or '') + ' ' + subject).lower()
+
+    ext_map = [
+        (['soil conserv', 'soil erosion'],
+         f"Fast learners: Research two soil conservation techniques not covered in the lesson (e.g. terracing, gabions); draw labelled diagrams and explain where each is best applied",
+         f"Need support: Match provided picture cards showing effects of soil erosion to the correct conservation method from a given list"),
+        (['water harvest', 'water storage', 'irrigation'],
+         f"Fast learners: Design a labelled rainwater harvesting system for a school farm; state the function of each component",
+         f"Need support: Label the parts of a simple water harvesting structure using a provided diagram and word bank"),
+        (['crop produc', 'kitchen garden', 'backyard garden', 'seed', 'planting'],
+         f"Fast learners: Plan a seasonal crop calendar for a kitchen garden in your county, showing rainfall patterns and planting windows",
+         f"Need support: Sort provided seed picture cards into food crops and cash crops using the textbook as reference"),
+        (['poultry', 'livestock', 'animal'],
+         f"Fast learners: Compare two commercial poultry or livestock breeds; present findings as a labelled comparison table",
+         f"Need support: Label the main parts of a poultry house or livestock pen using a given diagram and word bank"),
+        (['pest', 'disease control', 'weed'],
+         f"Fast learners: Create a one-month pest/disease monitoring diary for one crop grown in your area; include control measures",
+         f"Need support: Match pictures of crop diseases to their names and symptoms using provided photo cards"),
+        (['fraction', 'decimal', 'ratio', 'percent'],
+         f"Fast learners: Write and solve three real-life word problems involving {topic} (e.g. shopping, cooking, farming); show full working",
+         f"Need support: Use fraction strips or a number line to model each problem before solving"),
+        (['algebra', 'equation', 'linear', 'quadratic'],
+         f"Fast learners: Write a two-variable real-life equation from a personal scenario; solve and verify the solution",
+         f"Need support: Use a balance diagram template provided by the teacher to model and solve simple one-variable equations"),
+        (['geometr', 'shape', 'area', 'volume', 'angle'],
+         f"Fast learners: Measure and calculate the area and perimeter of three different spaces in school; present all working",
+         f"Need support: Use square grid paper to count units for area before applying the formula"),
+        (['statistic', 'data', 'probabilit', 'graph'],
+         f"Fast learners: Collect real data from classmates (e.g. heights, travel times) and draw the most appropriate statistical graph",
+         f"Need support: Complete a frequency table from given data with guided prompts before drawing a bar chart"),
+        (['reading', 'comprehension', 'intensive reading'],
+         f"Fast learners: Write a critical review of the passage, identifying the central theme and supporting it with textual evidence",
+         f"Need support: Use provided sentence starters to answer comprehension questions in full sentences"),
+        (['writing', 'essay', 'composition', 'creative writing'],
+         f"Fast learners: Write an extended piece incorporating figurative language, a structured argument and a memorable conclusion",
+         f"Need support: Use the provided paragraph frame to write one structured body paragraph with a topic sentence"),
+        (['grammar', 'tense', 'punctuation', 'sentence'],
+         f"Fast learners: Write ten original sentences each demonstrating a different grammatical structure covered this week",
+         f"Need support: Identify and correct grammatical errors in a provided paragraph using a grammar reference card"),
+        (['ecosystem', 'biodiversit', 'environment', 'conservation', 'climate'],
+         f"Fast learners: Research a locally threatened species; present a three-point conservation action plan with justification",
+         f"Need support: Sort pictures of living organisms into their correct ecosystems using a provided classification key"),
+        (['cell', 'microscop', 'organism', 'photosynthes', 'respiration'],
+         f"Fast learners: Create an annotated diagram showing the stages of {topic} at the cellular level",
+         f"Need support: Label a given diagram using a word bank; answer three short questions from the textbook"),
+        (['map', 'topograph', 'map reading'],
+         f"Fast learners: Draw a sketch map of the school environment with a key showing at least five features",
+         f"Need support: Identify three physical and three human features on a provided map using the legend"),
+        (['history', 'civic', 'constitution', 'government', 'rights', 'duties'],
+         f"Fast learners: Research how one historical event shaped a right or duty in Kenya's constitution; write a short structured report",
+         f"Need support: Complete a structured timeline placing key historical events in correct chronological order"),
+        (['health', 'nutrition', 'diet', 'hygiene'],
+         f"Fast learners: Plan a one-week balanced meal plan for a family of four; justify each day's food group choices",
+         f"Need support: Sort food picture cards into correct food groups using a food pyramid reference chart"),
+    ]
+
+    for keywords, fast, support in ext_map:
+        if any(kw in combined for kw in keywords):
+            return fast, support
+
+    fast = f"Fast learners: Research an advanced aspect of {topic} not covered in today's lesson; create a written or visual summary to share with the class"
+    support = f"Need support: Complete a structured activity sheet on {topic} with guided questions, a word bank and visual prompts"
+    return fast, support
+
+
+def _generate_values_with_context(values_raw, subject, topic, substrand):
+    """Return 2–3 value statements each with a lesson-specific contextual explanation."""
+    combined = (topic + ' ' + (substrand or '') + ' ' + subject).lower()
+
+    context_map = {
+        'unity': f"learners collaborate in groups during {topic} activities, combining individual strengths to achieve a shared goal",
+        'responsibility': f"learners take ownership of their tasks and handle all materials carefully during {topic}",
+        'integrity': f"learners report observations and findings honestly without falsifying results during {topic}",
+        'respect': f"learners listen attentively to peers' contributions and value diverse approaches to {topic}",
+        'peace': f"learners resolve group disagreements calmly and maintain a harmonious working environment during {topic}",
+        'love': f"learners show care for the environment, community and peers through their engagement with {topic}",
+        'patriotism': f"learners appreciate how {topic} contributes to national development and the well-being of Kenya",
+        'social justice': f"learners consider equitable access to resources and fair opportunities related to {topic}",
+    }
+
+    working = list(values_raw) if values_raw else []
+
+    # Supplement to at least 2 values using topic-appropriate defaults
+    if any(k in combined for k in ['soil', 'farm', 'crop', 'agri', 'water harvest', 'livestock', 'poultry']):
+        defaults = ['Unity', 'Responsibility', 'Patriotism']
+    elif any(k in combined for k in ['math', 'algebra', 'fraction', 'geometr', 'statistic']):
+        defaults = ['Integrity', 'Responsibility', 'Respect']
+    elif any(k in combined for k in ['reading', 'writing', 'grammar', 'english', 'language']):
+        defaults = ['Respect', 'Integrity', 'Responsibility']
+    elif any(k in combined for k in ['science', 'ecosystem', 'cell', 'biology', 'chemistry']):
+        defaults = ['Responsibility', 'Integrity', 'Love']
+    elif any(k in combined for k in ['social studies', 'history', 'civic', 'geography']):
+        defaults = ['Patriotism', 'Unity', 'Social Justice']
+    else:
+        defaults = ['Responsibility', 'Respect', 'Unity']
+
+    existing_lower = {v.lower() for v in working}
+    for d in defaults:
+        if len(working) >= 3:
+            break
+        if d.lower() not in existing_lower:
+            working.append(d)
+            existing_lower.add(d.lower())
+
+    result = []
+    for v in working[:3]:
+        key = v.lower().strip()
+        context = context_map.get(key, f"demonstrated through thoughtful and active participation in {topic} activities")
+        result.append(f"{v} — {context}")
+    return result
+
+
 def _build_single_lesson_plan(
     lesson_number, total_lessons, subject, grade, topic, strand, substrand,
     outcomes, questions, experiences, competencies, values, duration, date_str,
@@ -221,11 +754,15 @@ def _build_single_lesson_plan(
     else:
         slo_list = "- (Continued from previous lesson)"
     
-    # Format key inquiry questions
+    # Format key inquiry questions — strictly 2-3, directly related to strand (Rule 5)
+    questions = questions[:3]
+    # Pad to at least 2 if the DB only supplied 1
+    if len(questions) < 2:
+        questions.append(f"How does knowledge of {substrand or topic} apply in everyday life?")
     if questions:
         kiq_list = "\n".join([f"{i+1}. {item}" for i, item in enumerate(questions)])
     else:
-        kiq_list = "- (Refer to key inquiry questions from this strand)"
+        kiq_list = f"1. What are the key concepts in {substrand or topic}?\n2. How does this knowledge apply in daily life?"
     
     # Format suggested learning experiences into lesson steps
     lesson_steps = []
@@ -263,8 +800,9 @@ def _build_single_lesson_plan(
     # Format competencies (clean — no "Values" or "Link to" prefixes)
     competencies_text = "\n".join([f"- {c}" for c in competencies]) if competencies else "- Critical thinking and problem solving\n- Communication and collaboration\n- Self-efficacy"
     
-    # Format values (only actual values like responsibility, respect, etc.)
-    values_text = "\n".join([f"- {v}" for v in values]) if values else "- Respect\n- Responsibility\n- Unity"
+    # Format values with lesson-specific explanations (2–3 entries minimum)
+    values_entries = _generate_values_with_context(values, subject, topic, substrand)
+    values_text = "\n".join([f"- {v}" for v in values_entries])
     
     # Format links to other subjects
     links = links or []
@@ -320,13 +858,10 @@ def _build_single_lesson_plan(
     learner_dev_parts = []
     for i, step in enumerate(lesson_steps[:3]):
         teacher_dev_parts.append(f"Step {i+1}: {step}")
-        learner_dev_parts.append(f"Step {i+1}: Participate in guided activities and practice")
-    if values:
-        teacher_dev_parts.append(f"Emphasize {values[0]}")
-    teacher_dev_parts.append("Build critical thinking skills through questioning")
-    learner_dev_parts.append("Apply concepts through individual/group tasks")
-    learner_dev_parts.append("Collaborate with peers and share findings")
-    
+        learner_dev_parts.append(f"Step {i+1}: {_generate_step_learner_mirror(step, topic)}")
+    teacher_dev_parts.append("Circulate and monitor progress; ask probing questions to deepen understanding")
+    learner_dev_parts.append("Record all findings in exercise book; discuss conclusions with peers")
+
     teacher_dev = " ".join(teacher_dev_parts)
     learner_dev = " ".join(learner_dev_parts)
     
@@ -354,7 +889,13 @@ def _build_single_lesson_plan(
             f"Relate learning to everyday life."
         )
     
-    resources_cell = "Textbooks, Chalkboard/whiteboard, Learning aids, Reference materials, Student workbooks"
+    _all_res = _generate_lesson_resources(subject, grade, topic, substrand)
+    # Introduction: KICD books + first topic-specific item only (starter activity resources)
+    res_intro = ", ".join(_all_res[:2] + ([_all_res[2]] if len(_all_res) > 2 else ['Chalkboard/whiteboard and chalk/markers']))
+    # Development: all resources
+    res_dev = ", ".join(_all_res)
+    # Conclusion: main reference + exercise books + assessment checklist
+    res_concl = ", ".join([_all_res[0], 'Learner exercise books', 'Assessment rubric/checklist'])
     assessment_intro = "Oral questions, Observation"
     assessment_dev = "Observation, Practical work, Group participation, Oral/written exercises"
     assessment_concl = "Question and answer, Learner self-assessment"
@@ -414,21 +955,23 @@ Sub-Strand: {substrand if substrand else "__________________"}
 
 | Lesson Stage | Teacher Activities | Learner Activities | Learning Resources | Assessment |
 |---|---|---|---|---|
-| Introduction ({intro_time} min) | {teacher_intro} | {learner_intro} | {resources_cell} | {assessment_intro} |
-| Lesson Body / Development ({dev_time} min) | {teacher_dev} | {learner_dev} | {resources_cell} | {assessment_dev} |
-| Conclusion ({concl_time} min) | {teacher_concl} | {learner_concl} | {resources_cell} | {assessment_concl} |
+| Introduction ({intro_time} min) | {teacher_intro} | {learner_intro} | {res_intro} | {assessment_intro} |
+| Lesson Body / Development ({dev_time} min) | {teacher_dev} | {learner_dev} | {res_dev} | {assessment_dev} |
+| Conclusion ({concl_time} min) | {teacher_concl} | {learner_concl} | {res_concl} | {assessment_concl} |
 
 11) EXTENDED ACTIVITIES
 
-- Additional practice for fast learners
-- Reinforcement for learners who need support
-- Creative application of learning
+{{ext_fast}}
+{{ext_support}}
 
 12) REFLECTION
 
 - What did learners learn today?
 - What was challenging?
 - How can this be applied in everyday life?
+
+---
+⚠️ AI-generated — verify against KICD curriculum design before classroom use.
 """
     return plan
 
@@ -441,14 +984,23 @@ def generate_lesson_plan(subject, grade, topic="", duration=40):
     this will generate ALL the required lesson plans with content distributed
     across them.
     """
+    # Step 1: find any matching entry to confirm subject+grade exists
     curriculum = query_curriculum(subject, grade)
-    
     if not curriculum:
         return {
             "success": False,
             "error": f"Curriculum not found for {subject} {grade}",
             "content": ""
         }
+
+    # Step 2: get ALL entries for this subject+grade and pick the one whose
+    # substrand best matches the topic/prompt hint — Rule 2
+    from curriculum_db import get_curriculum as _get_all
+    all_for_grade = _get_all(subject=curriculum['subject'], grade=curriculum['grade'])
+    if isinstance(all_for_grade, list) and len(all_for_grade) > 1 and topic:
+        curriculum = _find_best_curriculum_entry(all_for_grade, topic)
+    elif isinstance(all_for_grade, list) and len(all_for_grade) >= 1:
+        curriculum = all_for_grade[0]
     
     # Extract curriculum components
     strand = curriculum.get('strand', '')
@@ -458,11 +1010,17 @@ def generate_lesson_plan(subject, grade, topic="", duration=40):
     experiences = curriculum.get('suggested_learning_experiences', [])
     raw_competencies = curriculum.get('core_competencies', [])
     raw_values = curriculum.get('values', [])
+    raw_pcis = curriculum.get('pcis', [])
+    raw_link_subjects = curriculum.get('link_subjects', [])
     
     # Clean up empty or stub items
     learning_outcomes = [o for o in learning_outcomes if len(o.strip()) > 10]
     key_questions = [q for q in key_questions if len(q.strip()) > 5]
-    experiences = [e for e in experiences if len(e.strip()) > 10]
+    # Filter preamble stubs like "Learners are guided to:" — Issue 4
+    experiences = [
+        e for e in experiences
+        if len(e.strip()) > 10 and not _STUB_ACTIVITY.match(e.strip())
+    ]
     
     # The CBC parser mixed values, links, and PCIs into competencies/values fields.
     # Separate them properly.
@@ -486,15 +1044,22 @@ def generate_lesson_plan(subject, grade, topic="", duration=40):
     
     strand_topic = _extract_strand_topic(strand) or topic or "the lesson"
     
-    # Extract a clean topic from the user's prompt (strip out "generate a grade X ... lesson plan on")
+    # Extract a clean topic from the user's prompt (strip noise like "generate a grade X lesson plan on")
     if topic and len(topic) > 60:
-        # Looks like a raw prompt — extract the real topic
         import re as _re
         topic_match = _re.search(r'\bon\s+([a-zA-Z0-9\s\-]{3,120})', topic, _re.IGNORECASE)
         if topic_match:
             extracted = topic_match.group(1)
+            # Strip leading "the strand / substrand / topic / unit" prefix — Rule 1
+            extracted = _re.sub(
+                r'^(?:the\s+)?(?:strand|sub-?strand|topic|unit)\s+',
+                '', extracted, flags=_re.IGNORECASE
+            )
             # Trim trailing noise like "under the substrand ..."
-            extracted = _re.split(r'\b(?:under|for|in|during|term)\b', extracted, maxsplit=1, flags=_re.IGNORECASE)[0]
+            extracted = _re.split(
+                r'\b(?:under|for|in|during|term)\b', extracted,
+                maxsplit=1, flags=_re.IGNORECASE
+            )[0]
             extracted = _re.sub(r'\s+', ' ', extracted).strip(' .,-_')
             if len(extracted) > 3:
                 topic = extracted.title()
@@ -504,22 +1069,29 @@ def generate_lesson_plan(subject, grade, topic="", duration=40):
             topic = strand_topic
     elif not topic or topic == subject:
         topic = strand_topic
+    # Prefer the substrand's clean name as the topic title when it's more specific
+    if substrand and len(substrand.strip()) > 3:
+        clean_sub = re.sub(r'^[\.\d\s]+', '', substrand).strip()
+        if len(clean_sub) > 3:
+            topic = clean_sub.title()
     
     # Determine lesson duration based on grade
     grade_num = int(re.search(r'\d+', grade).group()) if re.search(r'\d+', grade) else 7
     if grade_num <= 6:
         duration = 35
     
-    # Distribute curriculum content across lessons
-    outcomes_per_lesson = _distribute_items(learning_outcomes, num_lessons)
+    # Distribute experiences across lessons; SLOs shown in full every lesson — Issue 6
+    outcomes_per_lesson = [learning_outcomes for _ in range(num_lessons)]
     questions_per_lesson = _distribute_items(key_questions, num_lessons)
     experiences_per_lesson = _distribute_items(experiences, num_lessons)
     
-    # Competencies and values are shared across all lessons
-    shared_competencies = competencies[:5] if competencies else []
-    shared_values = values[:5] if values else []
-    shared_links = links[:3] if links else []
-    shared_pcis = pcis[:3] if pcis else []
+    # Approved competencies, supplemented to minimum 3 — Issues 3 & 4
+    approved_competencies = _filter_to_approved_competencies(competencies + raw_competencies)
+    shared_competencies = _supplement_competencies(approved_competencies, subject, topic, minimum=3)
+    shared_values = _filter_to_approved_values(values + raw_values)
+    # Topic-aware PCIs and cross-curricular links — Issues 1 & 2
+    shared_pcis = _generate_pcis(strand, substrand, topic, raw_pcis + pcis)
+    shared_links = _generate_cross_links(subject, strand, substrand, topic, raw_link_subjects + links)
     
     # Generate each lesson plan
     today = datetime.today()
