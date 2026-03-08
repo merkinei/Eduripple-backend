@@ -899,7 +899,12 @@ def _build_single_lesson_plan(
     assessment_intro = "Oral questions, Observation"
     assessment_dev = "Observation, Practical work, Group participation, Oral/written exercises"
     assessment_concl = "Question and answer, Learner self-assessment"
-    
+
+    # Extended activities (topic-specific)
+    _ext_fast_raw, _ext_support_raw = _generate_extended_activities(subject, topic, substrand, experiences)
+    ext_fast = f"- {_ext_fast_raw}"
+    ext_support = f"- {_ext_support_raw}"
+
     plan = f"""
 {'=' * 60}
 LESSON PLAN {lesson_number} OF {total_lessons} — {topic.upper()} (TSC-READY)
