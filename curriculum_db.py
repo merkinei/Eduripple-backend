@@ -270,3 +270,85 @@ def get_substrands(subject=None, grade=None, strand=None):
         return [row['substrand'] for row in cursor.fetchall()]
     finally:
         conn.close()
+
+
+def calculate_completeness(data):
+    """Calculate data completeness score (0-100)."""
+    checks = [
+        ('strand', lambda x: len((x or '').strip()) > 0),
+        ('substrand', lambda x: len((x or '').strip()) > 0),
+        ('learning_outcomes', lambda x: len(x or []) >= 2),
+        ('key_inquiry_questions', lambda x: len(x or []) >= 1),
+        ('suggested_learning_experiences', lambda x: len(x or []) >= 3),
+        ('core_competencies', lambda x: len(x or []) >= 1),
+        ('values', lambda x: len(x or []) >= 1),
+    ]
+    
+    completed = sum(1 for field, check in checks if check(data.get(field)))
+    return (completed / len(checks)) * 100
+
+
+def insert_curriculum(subject, grade, data, status="manual"):
+    """Insert or update a curriculum entry (for admin edits).
+    
+    Note: This is for manual admin edits, not for the parser.
+    The parser uses its own insert_substrand function.
+    """
+    if not Path(CURRICULUM_DB).exists():
+        return None
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if entry exists
+        cursor.execute("""
+            SELECT id FROM curriculum 
+            WHERE subject = ? AND grade = ? AND substrand = ?
+        """, (subject, grade, data.get('substrand', '')))
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Update existing
+            cursor.execute("""
+                UPDATE curriculum SET
+                    strand = ?,
+                    learning_outcomes = ?,
+                    key_inquiry = ?,
+                    activities = ?,
+                    competencies = ?,
+                    values_ = ?
+                WHERE id = ?
+            """, (
+                data.get('strand', ''),
+                json.dumps(data.get('learning_outcomes', [])),
+                json.dumps(data.get('key_inquiry_questions', [])),
+                json.dumps(data.get('suggested_learning_experiences', [])),
+                json.dumps(data.get('core_competencies', [])),
+                json.dumps(data.get('values', [])),
+                existing['id']
+            ))
+            conn.commit()
+            return existing['id']
+        else:
+            # Insert new
+            cursor.execute("""
+                INSERT INTO curriculum (
+                    subject, grade, strand, substrand,
+                    learning_outcomes, key_inquiry, activities,
+                    competencies, values_
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                subject, grade,
+                data.get('strand', ''),
+                data.get('substrand', ''),
+                json.dumps(data.get('learning_outcomes', [])),
+                json.dumps(data.get('key_inquiry_questions', [])),
+                json.dumps(data.get('suggested_learning_experiences', [])),
+                json.dumps(data.get('core_competencies', [])),
+                json.dumps(data.get('values', []))
+            ))
+            conn.commit()
+            return cursor.lastrowid
+    finally:
+        conn.close()

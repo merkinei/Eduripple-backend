@@ -13,8 +13,8 @@ def curriculum_dashboard():
     all_curriculum = get_curriculum()
     stats = get_curriculum_stats()
     
-    # Sort by completeness score (lowest first - needs review)
-    all_curriculum.sort(key=lambda x: x['completeness_score'])
+    # Sort by subject and grade
+    all_curriculum.sort(key=lambda x: (x.get('subject', ''), x.get('grade', '')))
     
     return render_template('admin/curriculum_dashboard.html', 
                          curriculum=all_curriculum,
@@ -44,20 +44,19 @@ def get_curriculum_detail(curriculum_id):
     if not row:
         return jsonify({'success': False, 'error': 'Not found'}), 404
     
+    row_dict = dict(row)
     data = {
-        'id': row['id'],
-        'subject': row['subject'],
-        'grade': row['grade'],
-        'strand': row['strand'],
-        'substrand': row['substrand'],
-        'learning_outcomes': json.loads(row['learning_outcomes'] or '[]'),
-        'key_inquiry_questions': json.loads(row['key_inquiry_questions'] or '[]'),
-        'suggested_learning_experiences': json.loads(row['suggested_learning_experiences'] or '[]'),
-        'core_competencies': json.loads(row['core_competencies'] or '[]'),
-        'values': json.loads(row['curriculum_values'] or '[]'),
-        'status': row['status'],
-        'completeness_score': row['completeness_score'],
-        'notes': row['notes'],
+        'id': row_dict.get('id'),
+        'subject': row_dict.get('subject', ''),
+        'grade': row_dict.get('grade', ''),
+        'strand': row_dict.get('strand', ''),
+        'substrand': row_dict.get('substrand', ''),
+        'learning_outcomes': json.loads(row_dict.get('learning_outcomes') or '[]'),
+        'key_inquiry_questions': json.loads(row_dict.get('key_inquiry') or '[]'),
+        'suggested_learning_experiences': json.loads(row_dict.get('activities') or '[]'),
+        'core_competencies': json.loads(row_dict.get('competencies') or '[]'),
+        'values': json.loads(row_dict.get('values_') or '[]'),
+        'notes': row_dict.get('raw_text', ''),
     }
     
     return jsonify({'success': True, 'data': data})
@@ -71,40 +70,41 @@ def update_curriculum(curriculum_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Build update query
+    # Build update query - map frontend field names to DB column names
+    field_mapping = {
+        'strand': 'strand',
+        'substrand': 'substrand',
+        'learning_outcomes': 'learning_outcomes',
+        'key_inquiry_questions': 'key_inquiry',
+        'suggested_learning_experiences': 'activities',
+        'core_competencies': 'competencies',
+        'values': 'values_',
+        'notes': 'raw_text',
+    }
+    
     updates = []
     params = []
     
-    for field in ['strand', 'substrand', 'status', 'notes']:
-        if field in data:
-            updates.append(f"{field} = ?")
-            params.append(data[field])
-    
-    for field in ['learning_outcomes', 'key_inquiry_questions', 
-                  'suggested_learning_experiences', 'core_competencies', 'values']:
-        if field in data:
-            db_field = 'curriculum_values' if field == 'values' else field
+    for frontend_field, db_field in field_mapping.items():
+        if frontend_field in data:
+            val = data[frontend_field]
+            # JSON encode list fields
+            if isinstance(val, list):
+                val = json.dumps(val)
             updates.append(f"{db_field} = ?")
-            params.append(json.dumps(data[field]))
+            params.append(val)
     
     if updates:
-        updates.append("last_updated = CURRENT_TIMESTAMP")
         params.append(curriculum_id)
-        
         query = f"UPDATE curriculum SET {', '.join(updates)} WHERE id = ?"
         cursor.execute(query, params)
         conn.commit()
     
     conn.close()
     
-    # Recalculate completeness
-    updated = get_curriculum()
-    updated_entry = next((c for c in updated if c['id'] == curriculum_id), None)
-    
     return jsonify({
         'success': True, 
         'message': 'Updated successfully',
-        'data': updated_entry,
     })
 
 
