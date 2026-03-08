@@ -359,10 +359,11 @@ def load_curriculum_from_db():
         init_curriculum_db()
         # Get all curriculum entries from database
         curriculum_list = get_curriculum()
-        # Convert to dict format for backward compatibility
+        # Convert to dict format - use substrand as unique key
         cbc_data = {}
         for entry in curriculum_list:
-            key = f"{entry['subject']}_{entry['grade']}"
+            # Create unique key including substrand to avoid overwrites
+            key = f"{entry['subject']}_{entry['grade']}_{entry['substrand']}"
             cbc_data[key] = {
                 'subject': entry['subject'],
                 'grade': entry['grade'],
@@ -373,12 +374,70 @@ def load_curriculum_from_db():
                 'suggested_learning_experiences': entry['suggested_learning_experiences'],
                 'core_competencies': entry['core_competencies'],
                 'values': entry['values'],
+                'pcis': entry.get('pcis', []),
             }
         app.logger.info(f"Loaded {len(cbc_data)} curriculum entries from database")
         return cbc_data
     except Exception as exc:
         app.logger.error(f"Could not load curriculum from database: {exc}")
         return {}
+
+
+def search_curriculum_context(query, subject=None, grade=None, limit=5):
+    """Search curriculum database for relevant context.
+    
+    Args:
+        query: Search term (topic, substrand, etc.)
+        subject: Optional subject filter
+        grade: Optional grade filter
+        limit: Maximum results to return
+        
+    Returns:
+        Formatted context string for AI prompts
+    """
+    from curriculum_db import search_curriculum, get_curriculum as get_curriculum_db
+    
+    results = []
+    
+    # If subject and grade provided, get specific curriculum
+    if subject and grade:
+        entries = get_curriculum_db(subject=subject, grade=grade)
+        if entries:
+            # Filter by query if provided
+            query_lower = query.lower() if query else ""
+            for entry in entries:
+                if query_lower in entry.get('substrand', '').lower() or \
+                   query_lower in entry.get('strand', '').lower() or \
+                   query_lower in str(entry.get('learning_outcomes', [])).lower():
+                    results.append(entry)
+                    if len(results) >= limit:
+                        break
+            # If no matches, return first few entries
+            if not results:
+                results = entries[:limit]
+    else:
+        # Search across all curriculum
+        results = search_curriculum(query, limit=limit)
+    
+    if not results:
+        return "No specific curriculum context found."
+    
+    # Format context for AI
+    context_parts = []
+    for entry in results:
+        part = f"""
+Subject: {entry['subject']} - {entry['grade']}
+Strand: {entry['strand']}
+Sub-strand: {entry['substrand']}
+Learning Outcomes: {', '.join(entry.get('learning_outcomes', []))}
+Key Inquiry Questions: {', '.join(entry.get('key_inquiry_questions', []))}
+Suggested Activities: {', '.join(entry.get('suggested_learning_experiences', [])[:3])}
+Core Competencies: {', '.join(entry.get('core_competencies', []))}
+Values: {', '.join(entry.get('values', []))}
+"""
+        context_parts.append(part.strip())
+    
+    return "\n---\n".join(context_parts)
 
 
 # Load curriculum from database

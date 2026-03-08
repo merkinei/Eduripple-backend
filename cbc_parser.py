@@ -101,19 +101,36 @@ def split_items(text) -> list:
     text = re.sub(r'^By\s+the\s+end\s+of\s+the\s+sub[\-\s]?strand.*?:', '', text, flags=re.IGNORECASE)
     text = re.sub(r'^The\s+learner\s+should\s+be\s+able\s+to:', '', text, flags=re.IGNORECASE)
     
-    # Split on lettered lists (a), b)), bullets, numbers
-    items = re.split(r'(?:^|\n)\s*[a-z]\)\s+|(?:^|\n)\s*[•\-\*]\s+|(?:^|\n)\s*\d+[\.\)]\s+|\n{2,}', text)
+    # Replace bullet characters with standard delimiter
+    text = text.replace('\uf0b7', '|||')  # PDF bullet character
+    text = re.sub(r'[•\-\*]\s+', '|||', text)
+    
+    # Split on lettered lists a), b), c) - these can appear inline without newlines
+    # Pattern matches: ", a)" or " a)" or newline+a) at word boundaries
+    text = re.sub(r'(?:,\s*|\s+)([a-z])\)\s+', r'|||', text)
+    
+    # Split on numbered lists: 1. or 1) or i. ii. iii.
+    text = re.sub(r'(?:,\s*|\s+)(\d+)[\.\)]\s+', r'|||', text)
+    text = re.sub(r'(?:,\s*|\s+)(i{1,3}|iv|v|vi{0,3})[\.\)]\s+', r'|||', text, flags=re.IGNORECASE)
+    
+    # Split on double newlines
+    text = re.sub(r'\n{2,}', '|||', text)
+    
+    # Now split by delimiter
+    items = text.split('|||')
+    
     result = []
     for item in items:
         item = clean(item)
-        # Remove leading bullet/letter characters that might remain
+        # Remove leading bullet/letter/number characters that might remain
         item = re.sub(r'^[•\-\*\d\.\)]+\s*', '', item)
         item = re.sub(r'^[a-z]\)\s*', '', item)
-        # Remove trailing commas that might be separators
-        item = item.rstrip(',')
+        item = re.sub(r'^(i{1,3}|iv|v|vi{0,3})[\.\)]\s*', '', item, flags=re.IGNORECASE)
+        # Remove trailing commas/periods
+        item = item.rstrip(',.;')
         if len(item) > 8:
             result.append(item)
-    return result[:20]
+    return result[:30]
 
 
 def extract_lesson_count(text: str) -> str:
@@ -204,12 +221,17 @@ def parse_filename(stem: str):
 
 # Order matters - more specific patterns first
 HEADER_PATTERNS = [
-    ('substrand', [r'\bsub[\-\s]?strand', r'\bsub strand']),
-    ('strand', [r'^strand$', r'\bstrand\b']),
-    ('num_lessons', [r'\bno\.', r'no of lessons', r'lessons', r'number of lessons']),
-    ('learning_outcomes', [r'specific learning', r'learning outcomes?', r'\bslo\b']),
-    ('key_inquiry', [r'key inquiry', r'inquiry question', r'\bkiq\b']),
-    ('activities', [r'suggested learning experience', r'learning experience', r'\bsle\b', r'activities']),
+    # Kiswahili headers (must come before English to match "Mada Ndogo" before "Mada")
+    ('substrand', [r'\bmada ndogo\b', r'\bsub[\-\s]?strand', r'\bsub strand']),
+    ('strand', [r'\bmada\b', r'^strand$', r'\bstrand\b']),
+    # Kiswahili: "Matokeo Maalum Yanayotarajiwa" = Learning Outcomes
+    ('learning_outcomes', [r'matokeo maalum', r'matokeo ya ujifunzaji', r'specific learning', r'learning outcomes?', r'\bslo\b']),
+    # Kiswahili: "Maswali Dadisi" or "Swali Dadisi" = Key Inquiry
+    ('key_inquiry', [r'maswali dadisi', r'swali dadisi', r'maswali ya uchunguzi', r'key inquiry', r'inquiry question', r'\bkiq\b']),
+    # Kiswahili: "Shughuli za Ujifunzaji" = Activities  
+    ('activities', [r'shughuli za ujifunzaji', r'suggested learning experience', r'learning experience', r'\bsle\b', r'activities']),
+    # English headers
+    ('num_lessons', [r'idadi ya vipindi', r'\bno\.', r'no of lessons', r'lessons', r'number of lessons']),
     ('competencies', [r'core competenc', r'\bcompetencies']),
     ('values_', [r'\bvalues\b', r'national values']),
     ('pcis', [r'pertinent', r'contemporary', r'\bpci\b']),
@@ -252,14 +274,18 @@ def extract_strand_number(text: str):
 # CORE PARSER — ONE ROW PER SUB-STRAND
 # ─────────────────────────────────────────────
 
-# Known problematic PDFs that cause pdfplumber to hang
-SKIP_PDFS = set()
+# Known problematic PDFs that cause pdfplumber to hang or crash
+SKIP_PDFS = set()  # No longer skipping Kiswahili - now supported
 
 def parse_pdf(pdf_path: Path, subject: str, grade: str, debug: bool = False) -> list:
     """
     Parse a CBC curriculum PDF.
     Returns a list of dicts — one dict per sub-strand.
     """
+    # Skip known problematic PDFs
+    if pdf_path.name in SKIP_PDFS:
+        return []
+    
     records = []
     page_errors = 0
     max_page_errors = 5  # Skip PDF after this many page errors
@@ -277,11 +303,18 @@ def parse_pdf(pdf_path: Path, subject: str, grade: str, debug: bool = False) -> 
                     
                 try:
                     page = pdf.pages[page_idx]
-                    tables = page.extract_tables()
-                except Exception as page_err:
+                except (Exception, KeyboardInterrupt) as e:
                     page_errors += 1
                     if debug:
-                        print(f"    [Page {page_idx} error ({page_errors}/{max_page_errors}): {page_err}]")
+                        print(f"    [Page {page_idx} load error: {e}]")
+                    continue
+                
+                try:
+                    tables = page.extract_tables()
+                except (Exception, KeyboardInterrupt) as page_err:
+                    page_errors += 1
+                    if debug:
+                        print(f"    [Page {page_idx} extract error ({page_errors}/{max_page_errors}): {page_err}]")
                     continue
 
                 if not tables:

@@ -1,4 +1,4 @@
-"""Curriculum database schema and utilities."""
+"""Curriculum database utilities - reads from cbc_parser.py generated database."""
 
 import sqlite3
 import json
@@ -11,51 +11,20 @@ from pathlib import Path
 DATA_DIR = os.getenv("DATA_DIR", ".")
 CURRICULUM_DB = os.path.join(DATA_DIR, "curriculum.db")
 
+
 def init_curriculum_db():
-    """Initialize curriculum database with schema."""
+    """Initialize/verify curriculum database exists.
+    
+    Note: The actual table creation is handled by cbc_parser.py.
+    This function just ensures the database file exists.
+    """
     db_path = Path(CURRICULUM_DB)
-    
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Create curriculum table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS curriculum (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject TEXT NOT NULL,
-            grade TEXT NOT NULL,
-            strand TEXT,
-            substrand TEXT,
-            learning_outcomes TEXT,
-            key_inquiry_questions TEXT,
-            suggested_learning_experiences TEXT,
-            core_competencies TEXT,
-            curriculum_values TEXT,
-            status TEXT DEFAULT 'auto_extracted',
-            completeness_score REAL DEFAULT 0.0,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            notes TEXT,
-            UNIQUE(subject, grade)
-        )
-    """)
-    
-    # Create audit log table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS curriculum_audit (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            curriculum_id INTEGER,
-            change_type TEXT,
-            old_value TEXT,
-            new_value TEXT,
-            changed_by TEXT DEFAULT 'system',
-            changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(curriculum_id) REFERENCES curriculum(id)
-        )
-    """)
-    
-    conn.commit()
-    conn.close()
-    print(f"[OK] Curriculum database initialized: {db_path}")
+    if not db_path.exists():
+        print(f"[WARN] Curriculum database not found at {db_path}")
+        print("       Run cbc_parser.py to generate the database from PDFs")
+        return False
+    print(f"[OK] Curriculum database found: {db_path}")
+    return True
 
 
 def get_db_connection():
@@ -65,132 +34,239 @@ def get_db_connection():
     return conn
 
 
-def insert_curriculum(subject, grade, data, status="auto_extracted"):
-    """Insert or update curriculum entry."""
+def get_curriculum(subject=None, grade=None, substrand=None):
+    """Retrieve curriculum entries from the parser-generated database.
+    
+    Args:
+        subject: Filter by subject name (optional)
+        grade: Filter by grade (optional)
+        substrand: Filter by substrand (optional)
+    
+    Returns:
+        List of curriculum entries or single entry if all filters provided
+    """
+    if not Path(CURRICULUM_DB).exists():
+        return [] if not (subject and grade and substrand) else None
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Calculate completeness score
-    score = calculate_completeness(data)
-    
-    # Convert lists to JSON strings
-    data_to_store = {
-        'subject': subject,
-        'grade': grade,
-        'strand': data.get('strand', ''),
-        'substrand': data.get('substrand', ''),
-        'learning_outcomes': json.dumps(data.get('learning_outcomes', [])),
-        'key_inquiry_questions': json.dumps(data.get('key_inquiry_questions', [])),
-        'suggested_learning_experiences': json.dumps(data.get('suggested_learning_experiences', [])),
-        'core_competencies': json.dumps(data.get('core_competencies', [])),
-        'curriculum_values': json.dumps(data.get('values', [])),
-        'status': status,
-        'completeness_score': score,
-    }
-    
     try:
-        cursor.execute("""
-            INSERT INTO curriculum 
-            (subject, grade, strand, substrand, learning_outcomes, 
-             key_inquiry_questions, suggested_learning_experiences, 
-             core_competencies, curriculum_values, status, completeness_score)
-            VALUES 
-            (:subject, :grade, :strand, :substrand, :learning_outcomes,
-             :key_inquiry_questions, :suggested_learning_experiences,
-             :core_competencies, :curriculum_values, :status, :completeness_score)
-            ON CONFLICT(subject, grade) DO UPDATE SET
-            strand = :strand,
-            substrand = :substrand,
-            learning_outcomes = :learning_outcomes,
-            key_inquiry_questions = :key_inquiry_questions,
-            suggested_learning_experiences = :suggested_learning_experiences,
-            core_competencies = :core_competencies,
-            curriculum_values = :curriculum_values,
-            status = :status,
-            completeness_score = :completeness_score,
-            last_updated = CURRENT_TIMESTAMP
-        """, data_to_store)
-        
-        conn.commit()
-        return cursor.lastrowid
+        if subject and grade and substrand:
+            cursor.execute("""
+                SELECT * FROM curriculum 
+                WHERE subject = ? AND grade = ? AND substrand = ?
+            """, (subject, grade, substrand))
+            row = cursor.fetchone()
+            return parse_curriculum_row(row) if row else None
+        elif subject and grade:
+            cursor.execute("""
+                SELECT * FROM curriculum 
+                WHERE subject = ? AND grade = ?
+                ORDER BY strand, substrand
+            """, (subject, grade))
+            rows = cursor.fetchall()
+            return [parse_curriculum_row(row) for row in rows]
+        elif subject:
+            cursor.execute("""
+                SELECT * FROM curriculum 
+                WHERE subject = ?
+                ORDER BY grade, strand, substrand
+            """, (subject,))
+            rows = cursor.fetchall()
+            return [parse_curriculum_row(row) for row in rows]
+        else:
+            cursor.execute("""
+                SELECT * FROM curriculum 
+                ORDER BY subject, grade, strand, substrand
+            """)
+            rows = cursor.fetchall()
+            return [parse_curriculum_row(row) for row in rows]
     finally:
         conn.close()
 
 
-def get_curriculum(subject=None, grade=None):
-    """Retrieve curriculum entries."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    if subject and grade:
-        cursor.execute("SELECT * FROM curriculum WHERE subject = ? AND grade = ?", (subject, grade))
-        row = cursor.fetchone()
-        conn.close()
-        return parse_curriculum_row(row) if row else None
-    else:
-        cursor.execute("SELECT * FROM curriculum ORDER BY subject, grade")
-        rows = cursor.fetchall()
-        conn.close()
-        return [parse_curriculum_row(row) for row in rows]
-
-
 def parse_curriculum_row(row):
-    """Parse database row into Python objects."""
+    """Parse database row into Python dict matching the parser schema."""
     if not row:
         return None
     
+    # Handle both old and new column names for compatibility
+    row_dict = dict(row)
+    
     return {
-        'id': row['id'],
-        'subject': row['subject'],
-        'grade': row['grade'],
-        'strand': row['strand'],
-        'substrand': row['substrand'],
-        'learning_outcomes': json.loads(row['learning_outcomes'] or '[]'),
-        'key_inquiry_questions': json.loads(row['key_inquiry_questions'] or '[]'),
-        'suggested_learning_experiences': json.loads(row['suggested_learning_experiences'] or '[]'),
-        'core_competencies': json.loads(row['core_competencies'] or '[]'),
-        'values': json.loads(row['curriculum_values'] or '[]'),
-        'status': row['status'],
-        'completeness_score': row['completeness_score'],
-        'last_updated': row['last_updated'],
-        'notes': row['notes'],
+        'id': row_dict.get('id'),
+        'subject': row_dict.get('subject', ''),
+        'grade': row_dict.get('grade', ''),
+        'strand': row_dict.get('strand', ''),
+        'strand_number': row_dict.get('strand_number', ''),
+        'substrand': row_dict.get('substrand', ''),
+        'substrand_number': row_dict.get('substrand_number', ''),
+        'num_lessons': row_dict.get('num_lessons', ''),
+        'learning_outcomes': json.loads(row_dict.get('learning_outcomes') or '[]'),
+        'key_inquiry_questions': json.loads(row_dict.get('key_inquiry') or '[]'),
+        'suggested_learning_experiences': json.loads(row_dict.get('activities') or '[]'),
+        'core_competencies': json.loads(row_dict.get('competencies') or '[]'),
+        'values': json.loads(row_dict.get('values_') or '[]'),
+        'pcis': json.loads(row_dict.get('pcis') or '[]'),
+        'assessment': json.loads(row_dict.get('assessment') or '[]'),
+        'link_subjects': json.loads(row_dict.get('link_subjects') or '[]'),
+        'raw_text': row_dict.get('raw_text', ''),
     }
 
 
-def calculate_completeness(data):
-    """Calculate data completeness score (0-100)."""
-    checks = [
-        ('strand', lambda x: len((x or '').strip()) > 0),
-        ('substrand', lambda x: len((x or '').strip()) > 0),
-        ('learning_outcomes', lambda x: len(x or []) >= 2),
-        ('key_inquiry_questions', lambda x: len(x or []) >= 3),
-        ('suggested_learning_experiences', lambda x: len(x or []) >= 5),
-        ('core_competencies', lambda x: len(x or []) >= 2),
-        ('values', lambda x: len(x or []) >= 2),
-    ]
+def search_curriculum(query, limit=10):
+    """Search curriculum by keyword in substrand, strand, or learning outcomes.
     
-    completed = sum(1 for field, check in checks if check(data.get(field)))
-    return (completed / len(checks)) * 100
+    Args:
+        query: Search term
+        limit: Maximum results to return
+    
+    Returns:
+        List of matching curriculum entries
+    """
+    if not Path(CURRICULUM_DB).exists():
+        return []
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        search_term = f"%{query}%"
+        cursor.execute("""
+            SELECT * FROM curriculum 
+            WHERE substrand LIKE ? 
+               OR strand LIKE ? 
+               OR learning_outcomes LIKE ?
+               OR key_inquiry LIKE ?
+               OR activities LIKE ?
+            ORDER BY subject, grade
+            LIMIT ?
+        """, (search_term, search_term, search_term, search_term, search_term, limit))
+        rows = cursor.fetchall()
+        return [parse_curriculum_row(row) for row in rows]
+    finally:
+        conn.close()
 
 
 def get_curriculum_stats():
     """Get database statistics."""
+    if not Path(CURRICULUM_DB).exists():
+        return {'total': 0, 'by_subject': {}, 'by_grade': {}}
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT COUNT(*) as total FROM curriculum")
-    total = cursor.fetchone()['total']
+    try:
+        cursor.execute("SELECT COUNT(*) as total FROM curriculum")
+        total = cursor.fetchone()['total']
+        
+        cursor.execute("""
+            SELECT subject, COUNT(*) as count 
+            FROM curriculum 
+            GROUP BY subject 
+            ORDER BY count DESC
+        """)
+        by_subject = {row['subject']: row['count'] for row in cursor.fetchall()}
+        
+        cursor.execute("""
+            SELECT grade, COUNT(*) as count 
+            FROM curriculum 
+            GROUP BY grade 
+            ORDER BY grade
+        """)
+        by_grade = {row['grade']: row['count'] for row in cursor.fetchall()}
+        
+        return {
+            'total': total,
+            'by_subject': by_subject,
+            'by_grade': by_grade,
+        }
+    finally:
+        conn.close()
+
+
+def get_subjects():
+    """Get list of unique subjects."""
+    if not Path(CURRICULUM_DB).exists():
+        return []
     
-    cursor.execute("SELECT status, COUNT(*) as count FROM curriculum GROUP BY status")
-    by_status = {row['status']: row['count'] for row in cursor.fetchall()}
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    cursor.execute("SELECT AVG(completeness_score) as avg_score FROM curriculum")
-    avg_score = cursor.fetchone()['avg_score'] or 0
+    try:
+        cursor.execute("SELECT DISTINCT subject FROM curriculum ORDER BY subject")
+        return [row['subject'] for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_grades():
+    """Get list of unique grades."""
+    if not Path(CURRICULUM_DB).exists():
+        return []
     
-    conn.close()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    return {
-        'total': total,
-        'by_status': by_status,
-        'average_completeness': round(avg_score, 1),
-    }
+    try:
+        cursor.execute("SELECT DISTINCT grade FROM curriculum ORDER BY grade")
+        return [row['grade'] for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_strands(subject=None, grade=None):
+    """Get list of strands, optionally filtered by subject and grade."""
+    if not Path(CURRICULUM_DB).exists():
+        return []
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        if subject and grade:
+            cursor.execute("""
+                SELECT DISTINCT strand FROM curriculum 
+                WHERE subject = ? AND grade = ?
+                ORDER BY strand
+            """, (subject, grade))
+        elif subject:
+            cursor.execute("""
+                SELECT DISTINCT strand FROM curriculum 
+                WHERE subject = ?
+                ORDER BY strand
+            """, (subject,))
+        else:
+            cursor.execute("SELECT DISTINCT strand FROM curriculum ORDER BY strand")
+        return [row['strand'] for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_substrands(subject=None, grade=None, strand=None):
+    """Get list of substrands, optionally filtered."""
+    if not Path(CURRICULUM_DB).exists():
+        return []
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        if subject and grade and strand:
+            cursor.execute("""
+                SELECT DISTINCT substrand FROM curriculum 
+                WHERE subject = ? AND grade = ? AND strand = ?
+                ORDER BY substrand
+            """, (subject, grade, strand))
+        elif subject and grade:
+            cursor.execute("""
+                SELECT DISTINCT substrand FROM curriculum 
+                WHERE subject = ? AND grade = ?
+                ORDER BY substrand
+            """, (subject, grade))
+        else:
+            cursor.execute("SELECT DISTINCT substrand FROM curriculum ORDER BY substrand")
+        return [row['substrand'] for row in cursor.fetchall()]
+    finally:
+        conn.close()
