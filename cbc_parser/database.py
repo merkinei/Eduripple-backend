@@ -242,21 +242,26 @@ class CurriculumDatabase:
         """
         self.db_path = db_path or DATABASE_PATH
         self._connection: Optional[sqlite3.Connection] = None
+        self._lock = __import__('threading').Lock()
         
     @contextmanager
     def get_connection(self):
         """Get a database connection as context manager.
         
+        Uses a lock to prevent concurrent writes (SQLite limitation).
+        
         Yields:
             sqlite3.Connection object
         """
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        try:
-            yield conn
-        finally:
-            conn.close()
+        with self._lock:
+            conn = sqlite3.connect(self.db_path, timeout=60.0)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("PRAGMA journal_mode = WAL")  # Better concurrent access
+            try:
+                yield conn
+            finally:
+                conn.close()
     
     def initialize(self):
         """Initialize the database schema."""

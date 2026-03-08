@@ -1,468 +1,545 @@
-import json
 import re
+import json
+import sqlite3
+import sys
+import pdfplumber
 from pathlib import Path
 
-import fitz
+PDF_DIR = Path("cbc pdfs")
+DB_PATH = Path("curriculum.db")
+OUT_JSON = Path("curriculum_parsed.json")
 
 
-ROOT = Path(__file__).resolve().parent
-PDF_DIR = ROOT / "cbc pdfs"
-OUT_FILE = ROOT / "cbc_parsed.json"
+# ─────────────────────────────────────────────
+# DATABASE
+# ─────────────────────────────────────────────
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS curriculum (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject             TEXT NOT NULL,
+            grade               TEXT NOT NULL,
+            strand              TEXT,
+            strand_number       TEXT,
+            substrand           TEXT,
+            substrand_number    TEXT,
+            num_lessons         TEXT,
+            learning_outcomes   TEXT,   -- JSON array
+            key_inquiry         TEXT,   -- JSON array
+            activities          TEXT,   -- JSON array
+            competencies        TEXT,   -- JSON array
+            values_             TEXT,   -- JSON array
+            pcis                TEXT,   -- JSON array
+            assessment          TEXT,   -- JSON array
+            link_subjects       TEXT,   -- JSON array
+            raw_text            TEXT
+        )
+    """)
+    # Index for fast lookup
+    c.execute("CREATE INDEX IF NOT EXISTS idx_subject_grade ON curriculum(subject, grade)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_strand ON curriculum(strand)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_substrand ON curriculum(substrand)")
+    conn.commit()
+    conn.close()
 
 
-def normalize_text(text: str) -> str:
-    replacements = {
-        "â€™": "'",
-        "â€˜": "'",
-        "â€œ": '"',
-        "â€\x9d": '"',
-        "â€“": "-",
-        "â€”": "-",
-        "Â": "",
-    }
-    for old, new in replacements.items():
-        text = text.replace(old, new)
-
-    text = text.replace("\r", "\n")
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text
-
-
-def meaningful_line(line: str) -> bool:
-    cleaned = line.strip()
-    if not cleaned:
-        return False
-    if re.fullmatch(r"[ivxlcdm]+", cleaned.lower()):
-        return False
-    if re.fullmatch(r"\d+", cleaned):
-        return False
-    if len(cleaned) < 2:
-        return False
-    return True
-
-
-def clean_lines(text: str) -> list[str]:
-    lines = [line.strip() for line in text.split("\n")]
-    lines = [line for line in lines if meaningful_line(line)]
-    lines = [re.sub(r"\s+", " ", line).strip() for line in lines]
-    return lines
+def insert_substrand(record: dict):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO curriculum (
+            subject, grade, strand, strand_number, substrand, substrand_number,
+            num_lessons, learning_outcomes, key_inquiry, activities,
+            competencies, values_, pcis, assessment, link_subjects, raw_text
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    """, (
+        record.get("subject", ""),
+        record.get("grade", ""),
+        record.get("strand", ""),
+        record.get("strand_number", ""),
+        record.get("substrand", ""),
+        record.get("substrand_number", ""),
+        record.get("num_lessons", ""),
+        json.dumps(record.get("learning_outcomes", [])),
+        json.dumps(record.get("key_inquiry", [])),
+        json.dumps(record.get("activities", [])),
+        json.dumps(record.get("competencies", [])),
+        json.dumps(record.get("values_", [])),
+        json.dumps(record.get("pcis", [])),
+        json.dumps(record.get("assessment", [])),
+        json.dumps(record.get("link_subjects", [])),
+        record.get("raw_text", ""),
+    ))
+    conn.commit()
+    conn.close()
 
 
-def parse_subject_grade(stem: str) -> tuple[str, int | None]:
-    stem = re.sub(r"\.pdf$", "", stem, flags=re.IGNORECASE)
-    normalized = stem.replace("-", "_")
-    grade_match = re.search(r"_grade_(\d+)", normalized, re.IGNORECASE)
-    grade = int(grade_match.group(1)) if grade_match else None
-    subject = re.sub(r"_grade_\d+", "", normalized, flags=re.IGNORECASE)
-    subject = subject.replace("_", " ").strip().title()
-    return subject, grade
+# ─────────────────────────────────────────────
+# TEXT HELPERS
+# ─────────────────────────────────────────────
+
+def clean(text) -> str:
+    if not text:
+        return ""
+    text = str(text).strip()
+    # Remove newlines and normalize whitespace
+    text = text.replace('\n', ' ')
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 
-def extract_first_field(lines: list[str], field: str) -> str:
-    pattern = re.compile(rf"^{re.escape(field)}\s*[:\-]?\s*(.+)$", re.IGNORECASE)
-    for line in lines:
-        match = pattern.match(line)
-        if not match:
-            continue
-        value = match.group(1).strip(" .:-")
-        normalized = value.strip(" ,:-").lower()
-        if len(value) < 3:
-            continue
-        if normalized in {"the", "the learner", "learner", "sub strand", "strand"}:
-            continue
-        if normalized.startswith("the learner"):
-            continue
-        if re.search(r"summary of|sub strands|grade\s*\d|\.\.\.", value, re.IGNORECASE):
-            continue
-        return value
+def split_items(text) -> list:
+    """Split bullet/numbered list text into clean items."""
+    if not text:
+        return []
+    text = str(text)
+    
+    # Remove common CBC prefixes
+    text = re.sub(r'^By\s+the\s+end\s+of\s+the\s+sub[\-\s]?strand.*?:', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'^The\s+learner\s+should\s+be\s+able\s+to:', '', text, flags=re.IGNORECASE)
+    
+    # Split on lettered lists (a), b)), bullets, numbers
+    items = re.split(r'(?:^|\n)\s*[a-z]\)\s+|(?:^|\n)\s*[•\-\*]\s+|(?:^|\n)\s*\d+[\.\)]\s+|\n{2,}', text)
+    result = []
+    for item in items:
+        item = clean(item)
+        # Remove leading bullet/letter characters that might remain
+        item = re.sub(r'^[•\-\*\d\.\)]+\s*', '', item)
+        item = re.sub(r'^[a-z]\)\s*', '', item)
+        # Remove trailing commas that might be separators
+        item = item.rstrip(',')
+        if len(item) > 8:
+            result.append(item)
+    return result[:20]
+
+
+def extract_lesson_count(text: str) -> str:
+    """Extract number of lessons from text like '(9 lessons)'."""
+    if not text:
+        return ""
+    m = re.search(r'\((\d+)\s*lessons?\)', text, re.IGNORECASE)
+    if m:
+        return m.group(1)
     return ""
 
 
-def looks_like_heading(line: str) -> bool:
-    text = line.strip()
-    if len(text) < 6 or len(text) > 120:
-        return False
-    if re.search(r"learner|suggested|assessment|question|experience", text, re.IGNORECASE):
-        return False
-    return bool(re.match(r"^\d+\.\d+(?:\.\d+)?\s+", text))
+# Known CBC competencies, values, and PCIs
+KNOWN_COMPETENCIES = [
+    'critical thinking', 'creativity', 'communication', 'collaboration',
+    'problem solving', 'self-efficacy', 'digital literacy', 'learning to learn',
+    'citizenship', 'imagination', 'curiosity'
+]
+
+KNOWN_VALUES = [
+    'unity', 'peace', 'love', 'respect', 'responsibility', 'honesty',
+    'patriotism', 'social justice', 'integrity', 'care', 'compassion',
+    'cooperation', 'tolerance', 'humility', 'sharing', 'national unity'
+]
+
+KNOWN_PCIS = [
+    'environmental', 'citizenship', 'health', 'life skills', 'gender',
+    'human rights', 'disaster risk', 'financial literacy', 'safety',
+    'peace education', 'drug abuse', 'child abuse', 'terrorism',
+    'road safety', 'food security', 'animal welfare'
+]
 
 
-def extract_strand_substrand(lines: list[str]) -> tuple[str, str]:
-    strand = extract_first_field(lines, "Strand")
-    substrand = extract_first_field(lines, "Sub-strand")
-
-    headings = [line for line in lines if looks_like_heading(line)]
-
-    if not strand:
-        for line in headings:
-            if re.match(r"^\d+\.\d+\s+", line):
-                strand = line
-                break
-
-    if not substrand and strand:
-        parent = re.match(r"^(\d+\.\d+)\b", strand)
-        if parent:
-            prefix = parent.group(1) + "."
-            for line in headings:
-                if line.startswith(prefix):
-                    substrand = line
-                    break
-
-    return strand, substrand
-
-
-def extract_question_lines(lines: list[str], full_text: str = "") -> list[str]:
-    """Extract Key Inquiry Questions from text.
-    Searches for complete question patterns, including partial word matches."""
-    questions = []
+def extract_embedded_fields(text: str) -> dict:
+    """
+    Extract competencies, values, and PCIs embedded in learning experiences text.
+    CBC documents often include these at the end of activities like:
+    "critical thinking skills as learners..., value of unity as they work together,
+    environmental awareness as learners explore..."
+    """
+    if not text:
+        return {'competencies': [], 'values_': [], 'pcis': []}
     
-    # Pattern 1: explicit "Key Inquiry Question" sections
-    kiq_pattern = r"(?:Key\s+Inquiry\s+Questions?|Inquiry\s+Questions?)\s*[:\-]?\s*([^?\n]*\?[^\n]*(?:\n[^?\n]*\?[^\n]*)*)"
-    matches = re.findall(kiq_pattern, full_text, re.IGNORECASE | re.MULTILINE)
-    for match in matches:
-        items = re.split(r"\n|;", match)
-        for item in items:
-            item = item.strip(" -•").strip()
-            if 8 <= len(item) <= 300 and "?" in item:
-                questions.append(item)
+    text_lower = text.lower()
     
-    # Pattern 2: Look for questions directly in text (lines ending with ?)
-    # But be more aggressive - accept partial lines that look like questions
-    for line in lines:
-        line = line.strip()
-        if "?" not in line:
-            continue
-        
-        # Skip metadata/boilerplate
-        if re.search(r"table|contents|page \d|grade|subject|strand", line, re.IGNORECASE):
-            continue
-        
-        # Accept if it looks like a question (8-300 chars, has ?)
-        if 8 <= len(line) <= 300:
-            questions.append(line)
+    competencies = []
+    values = []
+    pcis = []
     
-    # Pattern 3: Search full text for sentences ending with ?
-    sentence_pattern = r"[A-Z][^?]*\?"
-    matches = re.findall(sentence_pattern, full_text)
-    for match in matches:
-        match = match.strip()
-        if 8 <= len(match) <= 300 and not re.search(r"table|page|grade|subject", match, re.IGNORECASE):
-            questions.append(match)
+    # Extract competencies
+    for comp in KNOWN_COMPETENCIES:
+        if comp in text_lower:
+            competencies.append(comp.title())
     
-    # Deduplicate and clean
-    unique = []
-    seen = set()
-    for q in questions:
-        # Normalize: remove extra spaces, ensure ends with ?
-        q_clean = re.sub(r"\s+", " ", q).strip()
-        if not q_clean.endswith("?"):
-            q_clean += "?"
-        key = q_clean.lower()
-        if key not in seen and len(q_clean) >= 8:
-            unique.append(q_clean)
-            seen.add(key)
+    # Extract values - look for patterns like "value of X" or just the value name
+    for val in KNOWN_VALUES:
+        if f'value of {val}' in text_lower or f'values of {val}' in text_lower or f'{val} as' in text_lower:
+            values.append(val.title())
     
-    return unique[:15]
-
-
-def extract_block_items(text: str, heading_regex: str, stop_regex: str) -> list[str]:
-    heading = re.search(heading_regex, text, re.IGNORECASE)
-    if not heading:
-        return []
-
-    start = heading.end()
-    block = text[start:]
-    stop = re.search(stop_regex, block, re.IGNORECASE)
-    if stop:
-        block = block[: stop.start()]
-
-    candidates = []
-    for raw in re.split(r"\n|\r", block):
-        line = re.sub(r"\s+", " ", raw).strip(" -•\t")
-        if len(line) < 6:
-            continue
-        if re.fullmatch(r"\d+", line):
-            continue
-        if re.search(r"^strand$|^sub[- ]?strand$", line, re.IGNORECASE):
-            continue
-        candidates.append(line)
-
-    unique = []
-    seen = set()
-    for item in candidates:
-        key = item.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(item)
-
-    return unique[:40]
-
-
-def extract_competencies(lines: list[str]) -> list[str]:
-    found = []
-    for line in lines:
-        if re.search(r"core competencies?\s*:", line, re.IGNORECASE):
-            value = re.split(r":", line, maxsplit=1)[-1].strip()
-            if value:
-                found.append(value)
-        elif re.search(
-            r"critical thinking|communication and collaboration|digital literacy|self-efficacy|learning to learn|citizenship|creativity",
-            line,
-            re.IGNORECASE,
-        ):
-            found.append(line)
-
-    unique = []
-    seen = set()
-    for item in found:
-        key = item.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(item)
-    return unique[:20]
-
-
-def extract_values(lines: list[str]) -> list[str]:
-    found = []
-    for line in lines:
-        if re.search(r"values?\s*:", line, re.IGNORECASE):
-            value = re.split(r":", line, maxsplit=1)[-1].strip()
-            if value:
-                found.append(value)
-        elif re.search(r"respect|integrity|unity|responsibility|honesty|perseverance|patriotism", line, re.IGNORECASE):
-            found.append(line)
-
-    unique = []
-    seen = set()
-    for item in found:
-        key = item.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(item)
-    return unique[:20]
-
-
-def extract_suggested_learning_experiences(text: str) -> list[str]:
-    """Extract Suggested Learning Experiences from text.
-    Uses multiple patterns to find learning activities."""
-    if not isinstance(text, str):
-        return []
+    # Extract PCIs - look for "awareness", "education" patterns and known terms
+    for pci in KNOWN_PCIS:
+        if pci in text_lower:
+            pcis.append(pci.title())
     
-    experiences = []
-    
-    # Pattern 1: Explicit "Suggested Learning Experiences" section
-    sle_pattern = r"(?:Suggested\s+Learning\s+Experiences?|Learning\s+Experiences?)\s*[:\-]?\s*([^?]*?)(?=\n(?:Key\s+Inquiry|Core\s+Competencies|Values|Assessment|Specific\s+Learning|Strand|$))"
-    matches = re.findall(sle_pattern, text, re.IGNORECASE | re.DOTALL)
-    
-    if matches:
-        for match in matches:
-            # Split by common separators
-            items = re.split(r"\n\s*[•\-\*]\s+|\n\s*\d+\)[:\s]+|\n(?=[A-Z])", match)
-            for item in items:
-                item = re.sub(r"\s+", " ", item).strip()
-                # Remove numbering patterns
-                item = re.sub(r"^\d+\.\d+\.?\d*\s*", "", item)
-                item = re.sub(r"^\(\d+\s+lessons?\)\s*", "", item)
-                item = re.sub(r"^•\s*", "", item)
-                
-                if 15 <= len(item) <= 300:
-                    # Must look like a learning activity
-                    if any(verb in item.lower() for verb in ["learner", "listen", "read", "write", "discuss", "present", "create", "practice", "observe", "identify", "demonstrate", "group", "pair", "engage"]):
-                        experiences.append(item)
-    
-    # Pattern 2: Look for lines that start with action verbs related to learning
-    lines = text.split("\n")
-    for line in lines:
-        line = line.strip()
-        if 15 <= len(line) <= 300:
-            # Check for activity-related keywords
-            lower = line.lower()
-            if any(phrase in lower for phrase in ["the learner", "learners", "listen to", "read", "write", "discuss", "group activity", "pair work", "engage", "observe", "reflect", "role play"]):
-                # Skip metadata
-                if not re.search(r"strand|page|assessment|rubric|grade|subject|table", lower):
-                    experiences.append(line)
-    
-    # Pattern 3: Look for bulleted/numbered items that look like activities
-    activity_pattern = r"(?:^|\n)\s*[•\-\*]\s+([A-Z][^?\n]{15,300})"
-    matches = re.findall(activity_pattern, text, re.MULTILINE)
-    for match in matches:
-        if any(verb in match.lower() for verb in ["listen", "read", "write", "discuss", "practice", "observe", "identify", "learner"]):
-            experiences.append(match.strip())
-    
-    # Deduplicate
-    unique = []
-    seen = set()
-    for exp in experiences:
-        exp = re.sub(r"\s+", " ", exp).strip()
-        if len(exp) >= 15:
-            key = exp.lower()[:80]  # Use first 80 chars for dedup
-            if key not in seen:
-                unique.append(exp)
-                seen.add(key)
-    
-    return unique[:15]
-
-
-def extract_learning_outcomes(text: str, lines: list[str]) -> list[str]:
-    from_heading = extract_block_items(
-        text,
-        r"specific\s+learning\s+outcomes?\s*[:\-]?",
-        r"key\s+inquiry\s+questions?|suggested\s+learning\s+experiences|core\s+competencies|values",
-    )
-    if from_heading:
-        return from_heading
-
-    by_end_blocks = re.findall(
-        r"By\s+the\s+end[^\n:]{0,120}:\s*(.+?)(?=\n\s*(?:Core competencies|Values|Key Inquiry|Suggested Learning|Strand|Sub Strand|$))",
-        text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    if by_end_blocks:
-        captured = []
-        for block in by_end_blocks:
-            pieces = re.split(r"\n|\r|\d+\.\s+|[•\-]\s+", block)
-            for part in pieces:
-                line = re.sub(r"\s+", " ", part).strip(" .:-")
-                if len(line) < 10 or len(line) > 220:
-                    continue
-                if re.search(r"suggested learning|core competencies|key inquiry", line, re.IGNORECASE):
-                    continue
-                if re.search(r"^(identify|explain|describe|demonstrate|apply|discuss|use|analyse|analyze|construct|create|differentiate|outline|state|classify|compare)\b", line, re.IGNORECASE):
-                    captured.append(line)
-
-        if captured:
-            unique = []
-            seen = set()
-            for item in captured:
-                key = item.lower()
-                if key in seen:
-                    continue
-                seen.add(key)
-                unique.append(item)
-            return unique[:30]
-
-    # Fallback: sentence-like lines that start with action verbs and are not boilerplate
-    candidates = []
-    for line in lines:
-        line = re.sub(r"^\d+\.\s*", "", line).strip()
-        if len(line) < 20 or len(line) > 220:
-            continue
-        if re.search(r"table of contents|summary of strands|lesson allocation|general learning outcomes", line, re.IGNORECASE):
-            continue
-        if re.match(r"^(Identify|Explain|Describe|Demonstrate|Apply|Discuss|Use|Analyse|Analyze|Construct|Create|Differentiate)\b", line):
-            candidates.append(line)
-
-    unique = []
-    seen = set()
-    for item in candidates:
-        key = item.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(item)
-    return unique[:30]
-
-
-def is_relevant_page(page_text: str) -> bool:
-    """Identify if a page contains curriculum content (not TOC, cover, blank, etc)."""
-    text_lower = page_text.lower()
-    
-    # Skip pages that are clearly not curriculum content
-    if re.search(r"table of contents|contents|acknowledgements|introduction|disclaimer", text_lower):
-        return False
-    if len(page_text.strip()) < 100:  # Skip mostly blank pages
-        return False
-    if page_text.count("\n") < 3:  # Skip pages with very few lines
-        return False
-        
-    # Keep pages with curriculum keywords
-    curriculum_keywords = [
-        "strand", "sub strand", "substrand", "learning outcome", "key inquiry",
-        "core competency", "value", "suggested learning", "assessment",
-        "specific learning outcome", "competencies"
-    ]
-    
-    has_curriculum = any(keyword in text_lower for keyword in curriculum_keywords)
-    return has_curriculum
-
-
-def extract_relevant_pages(doc) -> list[str]:
-    """Extract from pages 12+ to capture all curriculum content.
-    Skip only cover/TOC pages (1-11) and heavily process all remaining pages."""
-    relevant_texts = []
-    
-    # Scan pages 12+ (indices 11+) - these have the curriculum content
-    # Don't limit to 100 pages - get everything
-    try:
-        for idx in range(11, len(doc)):
-            try:
-                text = doc[idx].get_text()
-                normalized = normalize_text(text)
-                # Keep all non-blank pages - we'll filter during extraction
-                if normalized.strip():
-                    relevant_texts.append(normalized)
-            except:
-                # Skip problematic pages
-                continue
-    except:
-        pass
-    
-    return relevant_texts
-
-
-def parse_pdf(path: Path) -> dict:
-    with path.open("rb") as file_obj:
-        doc = fitz.open(stream=file_obj.read(), filetype="pdf")
-        
-        # Extract only from relevant pages
-        relevant_pages = extract_relevant_pages(doc)
-        if not relevant_pages:
-            # Fallback: use all pages if none marked as relevant
-            relevant_pages = [normalize_text(page.get_text()) for page in doc]
-        
-        full_text = "\n".join(relevant_pages)
-
-    full_text = normalize_text(full_text)
-    lines = clean_lines(full_text)
-
-    subject, grade = parse_subject_grade(path.stem)
-    strand, substrand = extract_strand_substrand(lines)
-
-    learning_outcomes = extract_learning_outcomes(full_text, lines)
-    key_inquiry_questions = extract_question_lines(lines, full_text)
-    core_competencies = extract_competencies(lines)
-    values = extract_values(lines)
-    suggested_learning_experiences = extract_suggested_learning_experiences(full_text)
-
     return {
-        "subject": subject,
-        "grade": grade,
-        "strand": strand,
-        "substrand": substrand,
-        "learning_outcomes": learning_outcomes,
-        "key_inquiry_questions": key_inquiry_questions,
-        "core_competencies": core_competencies,
-        "values": values,
-        "suggested_learning_experiences": suggested_learning_experiences,
-        "source_file": path.stem,
+        'competencies': list(set(competencies))[:10],
+        'values_': list(set(values))[:10],
+        'pcis': list(set(pcis))[:10]
     }
 
 
-def main() -> None:
+def parse_filename(stem: str):
+    """Extract subject and grade from filename like 'English_Grade7'."""
+    name = str(stem)
+    # Remove .pdf if still present
+    name = re.sub(r'\.pdf$', '', name, flags=re.IGNORECASE)
+    
+    grade_match = re.search(r'Grade[_\s]?(\w+)', name, re.IGNORECASE)
+    grade = f"Grade {grade_match.group(1)}" if grade_match else "Unknown"
+    subject = re.sub(r'[_\s]?Grade.*', '', name, flags=re.IGNORECASE)
+    subject = subject.replace('_', ' ').strip()
+    return subject, grade
+
+
+# ─────────────────────────────────────────────
+# HEADER NORMALIZER
+# ─────────────────────────────────────────────
+
+# Order matters - more specific patterns first
+HEADER_PATTERNS = [
+    ('substrand', [r'\bsub[\-\s]?strand', r'\bsub strand']),
+    ('strand', [r'^strand$', r'\bstrand\b']),
+    ('num_lessons', [r'\bno\.', r'no of lessons', r'lessons', r'number of lessons']),
+    ('learning_outcomes', [r'specific learning', r'learning outcomes?', r'\bslo\b']),
+    ('key_inquiry', [r'key inquiry', r'inquiry question', r'\bkiq\b']),
+    ('activities', [r'suggested learning experience', r'learning experience', r'\bsle\b', r'activities']),
+    ('competencies', [r'core competenc', r'\bcompetencies']),
+    ('values_', [r'\bvalues\b', r'national values']),
+    ('pcis', [r'pertinent', r'contemporary', r'\bpci\b']),
+    ('assessment', [r'assessment']),
+    ('link_subjects', [r'link to', r'other subjects', r'learning areas']),
+]
+
+
+def normalize_header(header: str) -> str:
+    if not header:
+        return ""
+    # Remove newlines and normalize whitespace
+    h = str(header).replace('\n', ' ').strip().lower()
+    h = re.sub(r'\s+', ' ', h)
+    
+    # Check patterns in order
+    for canonical, patterns in HEADER_PATTERNS:
+        for patt in patterns:
+            if re.search(patt, h, re.IGNORECASE):
+                return canonical
+    
+    return h.replace(' ', '_')
+
+
+# ─────────────────────────────────────────────
+# STRAND NUMBER DETECTOR
+# ─────────────────────────────────────────────
+
+def extract_strand_number(text: str):
+    """Extract strand number like '1.0', '2.3' from text."""
+    if not text:
+        return "", ""
+    m = re.match(r'^(\d+\.\d+)\s*(.*)', str(text).strip())
+    if m:
+        return m.group(1), m.group(2).strip()
+    return "", str(text).strip()
+
+
+# ─────────────────────────────────────────────
+# CORE PARSER — ONE ROW PER SUB-STRAND
+# ─────────────────────────────────────────────
+
+# Known problematic PDFs that cause pdfplumber to hang
+SKIP_PDFS = set()
+
+def parse_pdf(pdf_path: Path, subject: str, grade: str, debug: bool = False) -> list:
+    """
+    Parse a CBC curriculum PDF.
+    Returns a list of dicts — one dict per sub-strand.
+    """
+    records = []
+    page_errors = 0
+    max_page_errors = 5  # Skip PDF after this many page errors
+
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            total_pages = len(pdf.pages)
+
+            # Start from page 8 (index 7) - curriculum tables appear around pages 10-14
+            for page_idx in range(min(7, total_pages), total_pages):
+                if page_errors >= max_page_errors:
+                    if debug:
+                        print(f"    [Skipping rest of PDF - too many errors]")
+                    break
+                    
+                try:
+                    page = pdf.pages[page_idx]
+                    tables = page.extract_tables()
+                except Exception as page_err:
+                    page_errors += 1
+                    if debug:
+                        print(f"    [Page {page_idx} error ({page_errors}/{max_page_errors}): {page_err}]")
+                    continue
+
+                if not tables:
+                    continue
+
+                for table in tables:
+                    try:
+                        if not table or len(table) < 2:
+                            continue
+
+                        # Normalize headers
+                        raw_headers = table[0]
+                        headers = [normalize_header(h) for h in raw_headers]
+
+                        if debug:
+                            print(f"    Page {page_idx} headers: {raw_headers}")
+                            print(f"    Normalized: {headers}")
+
+                        # Skip tables with no useful headers
+                        useful = {'strand', 'substrand', 'learning_outcomes',
+                                  'key_inquiry', 'activities'}
+                        if not useful.intersection(set(headers)):
+                            continue
+
+                        current_strand = ""
+                        current_strand_num = ""
+
+                        for raw_row in table[1:]:
+                            # Pad row to header length
+                            row = list(raw_row) + [''] * (len(headers) - len(raw_row))
+
+                            row_dict = {}
+                            for i, h in enumerate(headers):
+                                if h:
+                                    row_dict[h] = clean(row[i])
+
+                            # Skip completely empty rows
+                            if not any(row_dict.values()):
+                                continue
+
+                            # ── Strand carry-forward ──────────────────────────
+                            # CBC tables often have strand in first column only
+                            # on the first row, then blank for sub-rows
+                            if row_dict.get('strand'):
+                                strand_num, strand_name = extract_strand_number(
+                                    row_dict['strand'])
+                                current_strand = strand_name or row_dict['strand']
+                                current_strand_num = strand_num
+
+                            substrand_raw = row_dict.get('substrand', '')
+                            if not substrand_raw:
+                                continue  # Skip rows with no sub-strand
+
+                            # Extract lesson count from substrand (e.g., "(9 lessons)")
+                            num_lessons = extract_lesson_count(substrand_raw) or row_dict.get('num_lessons', '')
+                            
+                            # Remove lesson count from substrand text
+                            substrand_clean = re.sub(r'\s*\(\d+\s*lessons?\)', '', substrand_raw, flags=re.IGNORECASE)
+                            
+                            substrand_num, substrand_name = extract_strand_number(substrand_clean)
+
+                            # ── Build one clean record per sub-strand ─────────
+                            
+                            # Get raw activities text for embedded field extraction
+                            activities_raw = row_dict.get('activities', '')
+                            
+                            # Extract embedded competencies, values, and PCIs from activities text
+                            embedded = extract_embedded_fields(activities_raw)
+                            
+                            # Get explicit values from columns if present
+                            explicit_competencies = split_items(row_dict.get('competencies', ''))
+                            explicit_values = split_items(row_dict.get('values_', ''))
+                            explicit_pcis = split_items(row_dict.get('pcis', ''))
+                            
+                            # Merge explicit and embedded, prioritize explicit
+                            all_competencies = explicit_competencies + [c for c in embedded['competencies'] if c not in explicit_competencies]
+                            all_values = explicit_values + [v for v in embedded['values_'] if v not in explicit_values]
+                            all_pcis = explicit_pcis + [p for p in embedded['pcis'] if p not in explicit_pcis]
+                            
+                            record = {
+                                'subject':           subject,
+                                'grade':             grade,
+                                'strand':            current_strand,
+                                'strand_number':     current_strand_num,
+                                'substrand':         substrand_name or substrand_clean,
+                                'substrand_number':  substrand_num,
+                                'num_lessons':       num_lessons,
+                                'learning_outcomes': split_items(row_dict.get('learning_outcomes', '')),
+                                'key_inquiry':       split_items(row_dict.get('key_inquiry', '')),
+                                'activities':        split_items(activities_raw),
+                                'competencies':      all_competencies[:10],
+                                'values_':           all_values[:10],
+                                'pcis':              all_pcis[:10],
+                                'assessment':        split_items(row_dict.get('assessment', '')),
+                                'link_subjects':     split_items(row_dict.get('link_subjects', '')),
+                                'raw_text':          str(raw_row),
+                            }
+
+                            # Only save if it has at least SLOs or activities
+                            if record['learning_outcomes'] or record['activities']:
+                                records.append(record)
+                            
+                    except Exception as table_err:
+                        if debug:
+                            print(f"    [Table error on page {page_idx}: {table_err}]")
+                        continue
+
+    except Exception as e:
+        print(f"  [ERROR] {pdf_path.name}: {e}")
+
+    return records
+
+
+# ─────────────────────────────────────────────
+# QUERY HELPER (used by your app at runtime)
+# ─────────────────────────────────────────────
+
+def get_curriculum(subject: str, grade: str, substrand: str = "") -> list:
+    """
+    Fetch curriculum records from DB for injection into Claude prompt.
+    Call this BEFORE every Claude API call.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    if substrand:
+        c.execute("""
+            SELECT * FROM curriculum
+            WHERE subject LIKE ? AND grade LIKE ? AND substrand LIKE ?
+            LIMIT 3
+        """, (f"%{subject}%", f"%{grade}%", f"%{substrand}%"))
+    else:
+        c.execute("""
+            SELECT * FROM curriculum
+            WHERE subject LIKE ? AND grade LIKE ?
+            LIMIT 10
+        """, (f"%{subject}%", f"%{grade}%"))
+
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return rows
+
+
+def format_for_prompt(records: list) -> str:
+    """
+    Format DB records into clean text for Claude system prompt injection.
+    """
+    if not records:
+        return "No curriculum data found. Use general CBC guidelines."
+
+    parts = []
+    for r in records:
+        slos = json.loads(r.get('learning_outcomes', '[]'))
+        kiqs = json.loads(r.get('key_inquiry', '[]'))
+        acts = json.loads(r.get('activities', '[]'))
+        vals = json.loads(r.get('values_', '[]'))
+        pcis = json.loads(r.get('pcis', '[]'))
+
+        part = f"""
+STRAND: {r['strand_number']} {r['strand']}
+SUB-STRAND: {r['substrand_number']} {r['substrand']}
+LESSONS: {r['num_lessons']}
+
+SPECIFIC LEARNING OUTCOMES:
+{chr(10).join(f'- {s}' for s in slos)}
+
+KEY INQUIRY QUESTIONS:
+{chr(10).join(f'- {q}' for q in kiqs)}
+
+SUGGESTED LEARNING EXPERIENCES:
+{chr(10).join(f'- {a}' for a in acts)}
+
+VALUES: {', '.join(vals)}
+PCIs: {', '.join(pcis)}
+"""
+        parts.append(part.strip())
+
+    return "\n\n" + "="*50 + "\n\n".join(parts)
+
+
+# ─────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────
+
+def main():
     if not PDF_DIR.exists():
-        raise FileNotFoundError(f"PDF directory not found: {PDF_DIR}")
+        print(f"[ERROR] PDF directory not found: {PDF_DIR}")
+        return
 
-    parsed = {}
+    debug = "--debug" in sys.argv
+
+    print("Initializing database...")
+    init_db()
+
     pdfs = sorted(PDF_DIR.glob("*.pdf"))
-    for pdf in pdfs:
-        parsed[pdf.stem] = parse_pdf(pdf)
+    print(f"Found {len(pdfs)} PDFs\n")
 
-    OUT_FILE.write_text(json.dumps(parsed, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Parsed {len(parsed)} files -> {OUT_FILE}")
+    all_records = []
+    total_substrands = 0
+
+    for pdf in pdfs:
+        subject, grade = parse_filename(pdf.stem)
+        print(f"Parsing: {pdf.name} -> {subject} {grade}", end=" ")
+
+        records = parse_pdf(pdf, subject, grade, debug=debug)
+
+        for r in records:
+            insert_substrand(r)
+
+        total_substrands += len(records)
+        status = "[OK]" if records else "[WARN - no sub-strands found]"
+        print(f"{status} ({len(records)} sub-strands)")
+
+        all_records.extend(records)
+
+    # Save JSON backup
+    with open(OUT_JSON, 'w', encoding='utf-8') as f:
+        json.dump(all_records, f, ensure_ascii=False, indent=2)
+
+    print(f"\n{'='*50}")
+    print(f"Total PDFs parsed:     {len(pdfs)}")
+    print(f"Total sub-strands:     {total_substrands}")
+    print(f"Database:              {DB_PATH}")
+    print(f"JSON backup:           {OUT_JSON}")
+    print(f"\nRun diagnostic:")
+    print(f"  python cbc_parser.py --check")
+
+
+def diagnostic():
+    """Check what's in the database."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    c.execute("SELECT COUNT(*) FROM curriculum")
+    total = c.fetchone()[0]
+    print(f"\nTotal rows: {total}")
+
+    c.execute("""
+        SELECT subject, grade, COUNT(*) as count 
+        FROM curriculum 
+        GROUP BY subject, grade 
+        ORDER BY subject, grade
+    """)
+    print("\nSub-strands per subject/grade:")
+    for row in c.fetchall():
+        print(f"  {row[0]} {row[1]}: {row[2]} sub-strands")
+
+    c.execute("SELECT subject, grade, strand, substrand FROM curriculum LIMIT 5")
+    print("\nSample records:")
+    for row in c.fetchall():
+        print(f"  {row[0]} | {row[1]} | {row[2]} | {row[3]}")
+
+    conn.close()
 
 
 if __name__ == "__main__":
-    main()
+    if "--check" in sys.argv:
+        diagnostic()
+    else:
+        main()
