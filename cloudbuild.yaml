@@ -1,0 +1,60 @@
+# cloudbuild.yaml - Google Cloud Build configuration for EduRipple Backend
+# Automatically builds and deploys when pushing to your repository
+
+steps:
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/eduripple-backend:$SHORT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/eduripple-backend:latest'
+      - '.'
+    env:
+      - 'CLOUDSDK_COMPUTE_ZONE=us-central1'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=default'
+
+  # Step 2: Push to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/eduripple-backend:$SHORT_SHA'
+    waitFor: ['build']
+
+  # Step 3a: Deploy to Cloud Run (recommended for scalability)
+  - name: 'gcr.io/cloud-builders/run'
+    id: 'deploy-cloudrun'
+    args:
+      - 'deploy'
+      - 'eduripple-backend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/eduripple-backend:$SHORT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--timeout'
+      - '3600'
+      - '--set-env-vars'
+      - 'FLASK_ENV=production,PORT=8080'
+
+images:
+  - 'gcr.io/$PROJECT_ID/eduripple-backend:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/eduripple-backend:latest'
+
+timeout: 3600s
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+
+# Alternative Step 3b: Deploy to App Engine (deployment automatically handled by app.yaml)
+# - name: 'gcr.io/cloud-builders/appengine-python'
+#   args: ['deploy', '--appyaml=app.yaml']

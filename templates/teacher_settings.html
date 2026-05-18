@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Settings{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container narrow">
+        <div class="card auth-card">
+            <h1>Settings</h1>
+            <p>Manage your session and platform preferences.</p>
+            <div style="margin-top: 0.8rem;">
+                <h2 style="margin-bottom: 0.35rem;">Theme</h2>
+                <p class="api-note" id="themeStatus">Choose your preferred appearance mode.</p>
+                <div class="cta-row" style="margin-top: 0.4rem;">
+                    <button type="button" class="btn btn-secondary" id="setLightTheme">Light Mode</button>
+                    <button type="button" class="btn btn-secondary" id="setDarkTheme">Dark Mode</button>
+                </div>
+            </div>
+            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                <h2 style="margin-bottom: 0.35rem;">Change Password</h2>
+                <p class="api-note">Update your account password for security.</p>
+                <form method="post" action="{{ url_for('change_password') }}" class="auth-form" style="margin-top: 0.8rem;">
+                    <label>Current Password</label>
+                    <input type="password" name="current_password" required placeholder="Enter current password" />
+                    
+                    <label>New Password</label>
+                    <input type="password" name="new_password" required placeholder="Enter new password (min 8 chars)" />
+                    
+                    <label>Confirm New Password</label>
+                    <input type="password" name="confirm_password" required placeholder="Confirm new password" />
+                    
+                    <button type="submit" class="btn btn-primary" style="margin-top: 0.6rem;">Update Password</button>
+                </form>
+            </div>
+            <div class="cta-row" style="margin-top: 0.5rem;">
+                <a class="btn btn-secondary" href="{{ url_for('teacher_dashboard') }}">Back to Dashboard</a>
+                <form method="post" action="{{ url_for('teacher_signout') }}" class="inline-form">
+                    <button type="submit" class="btn btn-primary">Sign Out</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Features{% endblock %}
+{% block content %}
+<section class="hero hero-home" style="padding-bottom: 0;">
+    <div class="container hero-grid">
+        <div>
+            <span class="hero-kicker">Powerful Tools Made Simple</span>
+            <h1>Everything You Need to Teach Better</h1>
+            <p class="hero-subtitle">Six core features designed by educators, built for Kenyan CBC teachers. No complexity. No learning curve. Just results.</p>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem;">
+                <span class="highlight-chip" style="background: var(--color-accent); color: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.95rem;">✓ CBC-Aligned</span>
+                <span class="highlight-chip" style="background: var(--color-accent); color: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.95rem;">✓ AI-Powered</span>
+                <span class="highlight-chip" style="background: var(--color-accent); color: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.95rem;">✓ Instantly Usable</span>
+            </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true" style="position: relative; display: flex; align-items: center; justify-content: center;">
+            <div style="background: linear-gradient(135deg, var(--color-accent, #FF6B9D) 0%, var(--color-accent-light, #FFB6D9) 100%); border-radius: 20px; padding: 2rem; text-align: center; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">⚡</div>
+                <h3 style="margin: 0.5rem 0; font-size: 1.5rem; color: white; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">AI-Powered Teaching</h3>
+                <p style="color: rgba(255, 255, 255, 0.9); margin: 0.5rem 0;">Generate resources in seconds</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div style="grid-column: 1 / -1; text-align: center; margin-bottom: 2rem;">
+            <h2 style="margin-bottom: 0.5rem;">Core Features</h2>
+            <p style="color: var(--text-secondary); font-size: 1.05rem; margin: 0;">Click on any feature to learn more</p>
+        </div>
+        
+        <div class="grid cards-3" style="gap: 1.5rem;" id="featuresGrid">
+            <a href="{{ url_for('ai_chat') }}?feature=lesson_plan" class="feature-card" style="cursor: pointer; transition: all 0.3s ease; border: 2px solid transparent; padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); display: flex; flex-direction: column; text-decoration: none;">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                    </svg>
+                </div>
+                <h3 style="margin: 0 0 0.5rem 0; color: #000;">Lesson Plan Generator</h3>
+                <p style="margin: 0; color: #333; flex-grow: 1;">CBC-aligned 40-minute lesson outlines with outcomes, activities, and timing.</p>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Strand-based</span><br/>
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Competency-linked</span>
+                </div>
+                <div style="margin-top: 1rem; text-align: center;">
+                    <span style="font-size: 0.85rem; padding: 0.5rem 1rem; background: #2196F3; color: white; border-radius: 6px; display: inline-block;">Try It Now →</span>
+                </div>
+            </a>
+
+            <a href="{{ url_for('ai_chat') }}?feature=scheme_of_work" class="feature-card" style="cursor: pointer; transition: all 0.3s ease; border: 2px solid transparent; padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); display: flex; flex-direction: column; text-decoration: none;">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                </div>
+                <h3 style="margin: 0 0 0.5rem 0; color: #000;">Scheme of Work Creator</h3>
+                <p style="margin: 0; color: #333; flex-grow: 1;">KICD-compliant termly and annual schemes with topic progression and assessments.</p>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Term-based</span><br/>
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ KICD-aligned</span>
+                </div>
+                <div style="margin-top: 1rem; text-align: center;">
+                    <span style="font-size: 0.85rem; padding: 0.5rem 1rem; background: #2196F3; color: white; border-radius: 6px; display: inline-block;">Try It Now →</span>
+                </div>
+            </a>
+
+            <a href="{{ url_for('ai_chat') }}?feature=assessment" class="feature-card" style="cursor: pointer; transition: all 0.3s ease; border: 2px solid transparent; padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); display: flex; flex-direction: column; text-decoration: none;">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                </div>
+                <h3 style="margin: 0 0 0.5rem 0; color: #000;">Assessment & Rubric Builder</h3>
+                <p style="margin: 0; color: #333; flex-grow: 1;">Quality rubrics and assessment criteria matrices for formative and summative evaluation.</p>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Rubric-ready</span><br/>
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Criteria-clear</span>
+                </div>
+                <div style="margin-top: 1rem; text-align: center;">
+                    <span style="font-size: 0.85rem; padding: 0.5rem 1rem; background: #2196F3; color: white; border-radius: 6px; display: inline-block;">Try It Now →</span>
+                </div>
+            </a>
+
+            <a href="{{ url_for('library') }}" class="feature-card" style="cursor: pointer; transition: all 0.3s ease; border: 2px solid transparent; padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); display: flex; flex-direction: column; text-decoration: none;">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                    </svg>
+                </div>
+                <h3 style="margin: 0 0 0.5rem 0; color: #000;">Resource Recommendations</h3>
+                <p style="margin: 0; color: #333; flex-grow: 1;">Curated videos, audio clips, and visual resources suited to your lesson topic and grade.</p>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Grade-matched</span><br/>
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Pre-vetted</span>
+                </div>
+                <div style="margin-top: 1rem; text-align: center;">
+                    <span style="font-size: 0.85rem; padding: 0.5rem 1rem; background: #2196F3; color: white; border-radius: 6px; display: inline-block;">Browse Library →</span>
+                </div>
+            </a>
+
+            <a href="{{ url_for('ai_chat') }}" class="feature-card" style="cursor: pointer; transition: all 0.3s ease; border: 2px solid transparent; padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); display: flex; flex-direction: column; text-decoration: none;">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </div>
+                <h3 style="margin: 0 0 0.5rem 0; color: #000;">Conversational AI Chat</h3>
+                <p style="margin: 0; color: #333; flex-grow: 1;">Ask in plain English—no teaching jargon required. Get instant answers and tailored resources.</p>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Plain language</span><br/>
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Instant response</span>
+                </div>
+                <div style="margin-top: 1rem; text-align: center;">
+                    <span style="font-size: 0.85rem; padding: 0.5rem 1rem; background: #2196F3; color: white; border-radius: 6px; display: inline-block;">Start Chatting →</span>
+                </div>
+            </a>
+
+            <a href="{{ url_for('ai_chat') }}?feature=lesson_plan" class="feature-card" style="cursor: pointer; transition: all 0.3s ease; border: 2px solid transparent; padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); display: flex; flex-direction: column; text-decoration: none;">
+                <div style="width: 48px; height: 48px; margin-bottom: 1rem; color: var(--color-accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
+                    </svg>
+                </div>
+                <h3 style="margin: 0 0 0.5rem 0; color: #000;">PDF Export & Printing</h3>
+                <p style="margin: 0; color: #333; flex-grow: 1;">Download, customize, and print any generated resource for classroom use.</p>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Print-ready</span><br/>
+                    <span style="font-size: 0.9rem; color: #000; font-weight: 500;">✓ Customizable</span>
+                </div>
+                <div style="margin-top: 1rem; text-align: center;">
+                    <span style="font-size: 0.85rem; padding: 0.5rem 1rem; background: #2196F3; color: white; border-radius: 6px; display: inline-block;">Generate & Print →</span>
+                </div>
+            </a>
+        </div>
+    </div>
+</section>
+
+<section class="section muted">
+    <div class="container">
+        <h2 style="text-align: center; margin-bottom: 2rem;">Why These Features Matter For You</h2>
+        <div class="grid cards-2" style="gap: 2rem;">
+            <div style="padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); border-left: 4px solid var(--color-accent);">
+                <h3 style="margin-top: 0;">Less Admin, More Teaching</h3>
+                <p>Spend less time formatting and organizing resources. EduRipple automates the admin so you can focus on student learning.</p>
+            </div>
+            <div style="padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); border-left: 4px solid #4CAF50;">
+                <h3 style="margin-top: 0;">Always Compliant with CBC</h3>
+                <p>Every resource respects the Kenya CBC framework and KICD guidelines. Never wonder if you're aligned—you always are.</p>
+            </div>
+            <div style="padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); border-left: 4px solid #2196F3;">
+                <h3 style="margin-top: 0;">Reusable & Adaptable</h3>
+                <p>Save your generated resources in your personal library. Modify them year after year, and build a custom teaching toolkit.</p>
+            </div>
+            <div style="padding: 1.5rem; border-radius: 12px; background: var(--bg-secondary); border-left: 4px solid #FF9800;">
+                <h3 style="margin-top: 0;">Made For Kenyan Schools</h3>
+                <p>Built by people who understand the Kenyan classroom context—from CBC alignment to resource availability in your region.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container" style="text-align: center;">
+        <h2 style="margin-bottom: 1.5rem;">Ready to Try These Features?</h2>
+        <p style="font-size: 1.05rem; color: var(--text-secondary); margin-bottom: 2rem;">Everything is designed to work right away—no training required.</p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <a class="btn btn-primary" href="{{ url_for('ai_chat') }}" style="font-size: 1.1rem; padding: 0.75rem 2rem;" data-ripple-sound>Launch AI Chat Now</a>
+            <a class="btn btn-secondary" href="{{ url_for('library') }}" style="font-size: 1.1rem; padding: 0.75rem 2rem;">Browse Resource Library</a>
+        </div>
+    </div>
+</section>
+
+<script>
+// Initialize interactive feature cards
+document.addEventListener('DOMContentLoaded', function() {
+    const featureCards = document.querySelectorAll('.feature-card');
+    
+    // Add hover effects to feature cards
+    featureCards.forEach((card, index) => {
+        // Hover effects
+        card.addEventListener('mouseenter', function() {
+            this.style.borderColor = 'var(--color-accent)';
+            this.style.boxShadow = '0 8px 24px rgba(255, 107, 157, 0.15)';
+            this.style.transform = 'translateY(-4px)';
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.borderColor = 'transparent';
+            this.style.boxShadow = 'none';
+            this.style.transform = 'translateY(0)';
+        });
+        
+        // Add stagger animation on load
+        card.style.animation = `slideUp 0.6s ease-out ${index * 0.1}s both`;
+    });
+});
+</script>
+<style>
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
+{% endblock %}

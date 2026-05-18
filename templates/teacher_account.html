@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Account Details{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container narrow">
+        <div class="card auth-card">
+            <h1>Account Details</h1>
+            <p>View your teacher profile information.</p>
+            <div class="auth-form" style="margin-top: 0.8rem;">
+                <label>Full Name</label>
+                <input type="text" value="{{ teacher_name }}" readonly />
+
+                <label>Email</label>
+                <input type="email" value="{{ teacher_email }}" readonly />
+                
+                <label>School</label>
+                <input type="text" value="{{ teacher_school or 'Not specified' }}" readonly />
+
+                <label>Subject Area</label>
+                <input type="text" value="{{ teacher_subject_area or 'Not specified' }}" readonly />
+
+                <label>Grade Levels</label>
+                <input type="text" value="{{ teacher_grade_level or 'Not specified' }}" readonly />
+
+                <label>Years of Experience</label>
+                <input type="text" value="{{ teacher_years_experience or 'Not specified' }}" readonly />
+            </div>
+            <p class="api-note" style="margin-top: 1rem;">For profile updates, contact platform support.</p>
+            <a class="btn btn-secondary" href="{{ url_for('teacher_dashboard') }}" style="margin-top: 0.6rem;">Back to Dashboard</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

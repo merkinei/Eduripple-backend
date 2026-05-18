@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}EduRipple | Manage Resources{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div>
+                <h1 style="margin-bottom: 0.3rem;">My Resources</h1>
+                <p>Manage and organize your generated lesson documents.</p>
+            </div>
+            <a class="btn btn-primary" href="{{ url_for('ai_chat') }}">Generate New</a>
+        </div>
+
+        <div class="card" style="margin-bottom: 1rem;">
+            <form method="get" style="display: flex; gap: 0.6rem; align-items: flex-end;">
+                <div style="flex: 1;">
+                    <label for="search" style="display: block; margin-bottom: 0.3rem; font-weight: 500;">Search Files</label>
+                    <input type="text" id="search" name="search" placeholder="Search by filename..." value="{{ search_query or '' }}" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); color: var(--text);" />
+                </div>
+                <div>
+                    <label for="sort" style="display: block; margin-bottom: 0.3rem; font-weight: 500;">Sort By</label>
+                    <select id="sort" name="sort" style="padding: 0.6rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); color: var(--text);">
+                        <option value="recent">Most Recent</option>
+                        <option value="oldest">Oldest</option>
+                        <option value="name_asc">Name (A-Z)</option>
+                        <option value="name_desc">Name (Z-A)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-secondary">Filter</button>
+            </form>
+        </div>
+
+        {% if resources %}
+        <div class="card">
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border);">
+                            <th style="text-align: left; padding: 0.8rem; font-weight: 600;">Filename</th>
+                            <th style="text-align: center; padding: 0.8rem; font-weight: 600;">Size</th>
+                            <th style="text-align: center; padding: 0.8rem; font-weight: 600;">Modified</th>
+                            <th style="text-align: center; padding: 0.8rem; font-weight: 600;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for resource in resources %}
+                        <tr style="border-bottom: 1px solid var(--border); hover:background: var(--surface-muted);">
+                            <td style="padding: 0.8rem;">
+                                <a href="{{ resource.url }}" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none; font-weight: 500;">
+                                    📄 {{ resource.name }}
+                                </a>
+                            </td>
+                            <td style="text-align: center; padding: 0.8rem; color: var(--muted);">{{ resource.size }}</td>
+                            <td style="text-align: center; padding: 0.8rem; color: var(--muted);">{{ resource.modified }}</td>
+                            <td style="text-align: center; padding: 0.8rem;">
+                                <form method="post" action="{{ url_for('delete_resource') }}" style="display: inline;">
+                                    <input type="hidden" name="filename" value="{{ resource.name }}" />
+                                    <button type="submit" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.85rem;" onclick="return confirm('Delete this file?');">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p style="margin-top: 0.8rem; font-size: 0.9rem; color: var(--muted);"><strong>Total:</strong> {{ resources|length }} file(s)</p>
+        </div>
+        {% else %}
+        <div class="card">
+            <p>No resources found. <a href="{{ url_for('ai_chat') }}">Create your first document</a>.</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

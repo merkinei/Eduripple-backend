@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+
+{% block title %}Curriculum Management - Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <h1 style="display: flex; align-items: center; gap: 0.5rem;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><path d="M8 7h8"></path><path d="M8 11h8"></path></svg> Curriculum Management Dashboard</h1>
+    
+    <!-- Statistics -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.total }}</div>
+            <div class="stat-label">Total Subjects</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.by_status.get('auto_extracted', 0) }}</div>
+            <div class="stat-label">Auto-Extracted</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.by_status.get('manual_curated', 0) }}</div>
+            <div class="stat-label">Manually Curated</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ "%.1f"|format(stats.average_completeness) }}%</div>
+            <div class="stat-label">Avg. Completeness</div>
+        </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-section">
+        <input type="text" id="searchInput" placeholder="Search subjects..." class="search-box">
+        <select id="statusFilter" class="filter-select">
+            <option value="">All Status</option>
+            <option value="auto_extracted">Auto-Extracted</option>
+            <option value="manual_curated">Manually Curated</option>
+            <option value="needs_review">Needs Review</option>
+        </select>
+    </div>
+
+    <!-- Curriculum Table -->
+    <div class="curriculum-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Grade</th>
+                    <th>Strand</th>
+                    <th>Completeness</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="curriculumTable">
+                {% for entry in curriculum %}
+                <tr class="curriculum-row" data-id="{{ entry.id }}" data-subject="{{ entry.subject }}" data-status="{{ entry.status }}">
+                    <td>{{ entry.subject }}</td>
+                    <td>{{ entry.grade }}</td>
+                    <td>{{ entry.strand[:40] or "—" }}</td>
+                    <td>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{ entry.completeness_score }}%"></div>
+                            <span class="progress-text">{{ "%.0f"|format(entry.completeness_score) }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="status-badge status-{{ entry.status }}">
+                            {{ entry.status.replace('_', ' ').title() }}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn-edit" onclick="openCurriculumEditor({{ entry.id }})">Edit</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Editor Modal -->
+<div id="editorModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeCurriculumEditor()">&times;</span>
+        <h2 id="editorTitle">Edit Curriculum</h2>
+        
+        <div class="editor-form">
+            <div class="form-group">
+                <label>Strand</label>
+                <input type="text" id="editorStrand" class="editor-input" />
+            </div>
+            
+            <div class="form-group">
+                <label>Sub-Strand</label>
+                <input type="text" id="editorSubstrand" class="editor-input" />
+            </div>
+            
+            <div class="form-group">
+                <label>Key Inquiry Questions (one per line)</label>
+                <textarea id="editorKIQs" class="editor-textarea" rows="5"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Suggested Learning Experiences (one per line)</label>
+                <textarea id="editorSLEs" class="editor-textarea" rows="5"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Learning Outcomes (one per line)</label>
+                <textarea id="editorLOs" class="editor-textarea" rows="4"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Core Competencies (one per line)</label>
+                <textarea id="editorCompetencies" class="editor-textarea" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Values (one per line)</label>
+                <textarea id="editorValues" class="editor-textarea" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Status</label>
+                <select id="editorStatus" class="editor-input">
+                    <option value="auto_extracted">Auto-Extracted</option>
+                    <option value="manual_curated">Manually Curated</option>
+                    <option value="needs_review">Needs Review</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Notes</label>
+                <textarea id="editorNotes" class="editor-textarea" rows="3"></textarea>
+            </div>
+            
+            <div class="form-actions">
+                <button class="btn-save" onclick="saveCurriculumChanges()">Save Changes</button>
+                <button class="btn-cancel" onclick="closeCurriculumEditor()">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: bold;
+}
+
+.stat-label {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-top: 5px;
+}
+
+.filter-section {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.search-box, .filter-select {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.search-box {
+    flex: 1;
+}
+
+.curriculum-table {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.curriculum-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.curriculum-table th {
+    background: #f8f9fa;
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.curriculum-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.curriculum-table tr:hover {
+    background: #f8f9fa;
+}
+
+.progress-bar {
+    background: #e9ecef;
+    border-radius: 5px;
+    overflow: hidden;
+    height: 24px;
+    position: relative;
+}
+
+.progress-fill {
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    height: 100%;
+    transition: width 0.3s;
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+}
+
+.status-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-auto_extracted {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.status-manual_curated {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-needs_review {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.btn-edit {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.btn-edit:hover {
+    background: #764ba2;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.close {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #999;
+}
+
+.close:hover {
+    color: #000;
+}
+
+.editor-form {
+    margin-top: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #333;
+}
+
+.editor-input, .editor-textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.editor-textarea {
+    resize: vertical;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-save, .btn-cancel {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-save {
+    background: #667eea;
+    color: white;
+}
+
+.btn-save:hover {
+    background: #764ba2;
+}
+
+.btn-cancel {
+    background: #e9ecef;
+    color: #333;
+}
+
+.btn-cancel:hover {
+    background: #dee2e6;
+}
+</style>
+
+<script>
+let currentCurriculumId = null;
+
+function openCurriculumEditor(curriculumId) {
+    currentCurriculumId = curriculumId;
+    
+    fetch(`/admin/curriculum/api/${curriculumId}`)
+        .then(r => r.json())
+        .then(res => {
+            const data = res.data;
+            document.getElementById('editorTitle').textContent = `Edit ${data.subject} - ${data.grade}`;
+            document.getElementById('editorStrand').value = data.strand || '';
+            document.getElementById('editorSubstrand').value = data.substrand || '';
+            document.getElementById('editorKIQs').value = (data.key_inquiry_questions || []).join('\n');
+            document.getElementById('editorSLEs').value = (data.suggested_learning_experiences || []).join('\n');
+            document.getElementById('editorLOs').value = (data.learning_outcomes || []).join('\n');
+            document.getElementById('editorCompetencies').value = (data.core_competencies || []).join('\n');
+            document.getElementById('editorValues').value = (data.values || []).join('\n');
+            document.getElementById('editorStatus').value = data.status || 'auto_extracted';
+            document.getElementById('editorNotes').value = data.notes || '';
+            
+            document.getElementById('editorModal').style.display = 'flex';
+        });
+}
+
+function closeCurriculumEditor() {
+    document.getElementById('editorModal').style.display = 'none';
+    currentCurriculumId = null;
+}
+
+function saveCurriculumChanges() {
+    const data = {
+        strand: document.getElementById('editorStrand').value,
+        substrand: document.getElementById('editorSubstrand').value,
+        key_inquiry_questions: document.getElementById('editorKIQs').value.split('\n').filter(x => x.trim()),
+        suggested_learning_experiences: document.getElementById('editorSLEs').value.split('\n').filter(x => x.trim()),
+        learning_outcomes: document.getElementById('editorLOs').value.split('\n').filter(x => x.trim()),
+        core_competencies: document.getElementById('editorCompetencies').value.split('\n').filter(x => x.trim()),
+        values: document.getElementById('editorValues').value.split('\n').filter(x => x.trim()),
+        status: document.getElementById('editorStatus').value,
+        notes: document.getElementById('editorNotes').value,
+    };
+    
+    fetch(`/admin/curriculum/api/${currentCurriculumId}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            alert('Saved successfully!');
+            closeCurriculumEditor();
+            location.reload();
+        }
+    });
+}
+
+// Search and filter
+document.getElementById('searchInput').addEventListener('input', function(e) {
+    const query = e.target.value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    
+    document.querySelectorAll('tr.curriculum-row').forEach(row => {
+        const subject = row.dataset.subject.toLowerCase();
+        const rowStatus = row.dataset.status;
+        const matchesSearch = subject.includes(query);
+        const matchesStatus = !status || rowStatus === status;
+        row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+    });
+});
+
+document.getElementById('statusFilter').addEventListener('change', function(e) {
+    const status = e.target.value;
+    const query = document.getElementById('searchInput').value.toLowerCase();
+    
+    document.querySelectorAll('tr.curriculum-row').forEach(row => {
+        const subject = row.dataset.subject.toLowerCase();
+        const rowStatus = row.dataset.status;
+        const matchesSearch = subject.includes(query);
+        const matchesStatus = !status || rowStatus === status;
+        row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+    });
+});
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('editorModal');
+    if (event.target === modal) {
+        closeCurriculumEditor();
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,72 @@
+# app.yaml - Google Cloud App Engine configuration for EduRipple Backend
+# Deploy with: gcloud app deploy
+
+runtime: python311
+env: standard
+
+instance_class: F2
+
+entrypoint: gunicorn -b :$PORT wsgi:app --timeout 120 --workers 4
+
+env_variables:
+  FLASK_ENV: "production"
+  # Add these environment variables via Google Cloud Console or gcloud:
+  # FLASK_SECRET_KEY - auto-generated secure key
+  # GEMINI_API_KEY - your Gemini API key
+  # OPENROUTER_API_KEY - your OpenRouter API key
+  # ELEVENLABS_API_KEY - your ElevenLabs API key
+  # OPENAI_API_KEY - your OpenAI API key (optional)
+  # YOUTUBE_API_KEY - your YouTube API key (optional)
+  # DATABASE_URL - Cloud SQL connection URI (optional, defaults to SQLite)
+
+handlers:
+  # Static files
+  - url: /static
+    static_dir: static
+    secure: always
+    
+  - url: /templates
+    static_dir: templates
+    secure: always
+
+  # API and web traffic
+  - url: /.*
+    secure: always
+    redirect_http_response_code: 301
+    script: auto
+
+vpc_access_connector:
+  # Optional: Un-comment if using Cloud SQL or other VPC resources
+  # name: "projects/PROJECT_ID/locations/REGION/connectors/CONNECTOR_NAME"
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  # App Engine standard does not support min_cpu_utilization/max_cpu_utilization.
+  # These values are omitted to allow deployment.
+
+skip_files:
+  - ^(?!static/).*\.js$
+  - ^(.*/)?\..*
+  - ^(.*/)?.git.*
+  - ^logs/.*
+  - ^.*\.pyc$
+  - ^.*\.pyo$
+  - ^.*\.pyd$
+  - ^\.env$
+  - ^\.env\..*$
+  - ^\.git$
+  - ^\.github$
+  - ^\.venv$
+  - ^venv/
+  - ^__pycache__/
+  - ^node_modules/
+  - ^*.md$
+  - ^cbc_parser/.*
+  - ^media_generator\.py$
+  - ^DEPLOYMENT*
+  - ^QUICK*
+  - ^AI_INIT*
+  - ^FEATURES*
+  - ^IMPLEMENTATION*
+  - ^SECURITY*

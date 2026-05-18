@@ -1,0 +1,35 @@
+# Skip files when deploying to Google Cloud Run
+.git
+.gitignore
+.vscode
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.db
+*.sqlite
+.DS_Store
+node_modules
+
+# Test files
+test_*.py
+tests/
+
+# Documentation
+*.md
+QUICK_REFERENCE.md
+DEPLOYMENT_*.md
+SECURITY_*.md
+
+# Logs
+logs/
+*.log
+
+# Cache
+.pytest_cache
+*.egg-info
+
+# Environment
+.env.example
