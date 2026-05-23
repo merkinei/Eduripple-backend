@@ -59,8 +59,15 @@ def query_curriculum(subject, grade, substrand_hint=None):
     Returns the best-matching entry (by substrand_hint if provided,
     otherwise the first match). Never returns on the first loop —
     always collects ALL matches first."""
-    # Normalize grade
-    grade_normalized = f"Grade {grade}" if grade and not grade.startswith("Grade") else grade
+    # Normalize grade: handle "10", "grade10", "Grade 10", "grade 10"
+    if not grade:
+        return None
+    
+    grade_str = str(grade).strip()
+    # Remove "Grade " prefix if present, extract just the number
+    grade_num = grade_str.lower().replace("grade", "").strip()
+    # Rebuild as "Grade N"
+    grade_normalized = f"Grade {grade_num}" if grade_num else grade_str
 
     all_curriculum = get_curriculum()
     if not all_curriculum:
@@ -68,8 +75,14 @@ def query_curriculum(subject, grade, substrand_hint=None):
 
     # Map common subject name variations to actual DB subject names
     subject_map = {
+        "english": "english",
+        "history": "history and government",
+        "history and government": "history and government",
+        "gov": "history and government",
+        "government": "history and government",
         "mathematics": "maths",
         "math": "maths",
+        "maths": "maths",
         "science": "intergrated science",
         "integrated science": "intergrated science",
         "intergrated science": "intergrated science",
@@ -81,6 +94,7 @@ def query_curriculum(subject, grade, substrand_hint=None):
         "agriculture and nutrion": "agriculture and nutrion",  # DB typo Grade 8
         "pre-technical studies": "pre technical studies",
         "pre technical studies": "pre technical studies",
+        "kiswahili": "kiswahili",
         "indigenous languages": "indigenious languages",
         "indigenous language": "indigenious languages",
         "indigenious languages": "indigenious languages",
