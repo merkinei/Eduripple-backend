@@ -5,7 +5,7 @@ import sys
 import pdfplumber
 from pathlib import Path
 
-PDF_DIR = Path("cbc pdfs")
+PDF_DIR = Path("cbc_pdfs")
 DB_PATH = Path("curriculum.db")
 OUT_JSON = Path("curriculum_parsed.json")
 
