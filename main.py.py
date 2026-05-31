@@ -173,12 +173,15 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 # Override with explicit env settings
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "eduripple-dev-secret-CHANGE-ME")
+import secrets
+if os.getenv("FLASK_SECRET_KEY"):
+    app.secret_key = os.getenv("FLASK_SECRET_KEY")
+else:
+    # Generate a strong random key if not provided
+    app.secret_key = secrets.token_hex(32)  # 256-bit key
+    if os.getenv("FLASK_ENV") == "production":
+        logging.warning("FLASK_SECRET_KEY not set. Using generated key. For persistent sessions across deployments, set FLASK_SECRET_KEY environment variable.")
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
-
-# Warn if using default secret key in production
-if os.getenv("FLASK_ENV") == "production" and app.secret_key == "eduripple-dev-secret-CHANGE-ME":
-    logging.critical("SECURITY WARNING: Using default secret key in production! Set FLASK_SECRET_KEY.")
 
 # --- Proxy Trust Middleware (for Railway, Heroku, etc.) ---
 @app.before_request
@@ -202,10 +205,11 @@ def trust_proxy_headers():
             app.logger.debug(f"Error preparing visit logging: {str(e)}")
 
 # Configure session cookies to work behind proxies
-app.config['SESSION_COOKIE_SECURE'] = False  # Allow HTTP for proxied connections
+app.config['SESSION_COOKIE_SECURE'] = os.getenv("FLASK_ENV") == "production"  # Secure for HTTPS in production
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Send with cross-site requests
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['PERMANENT_SESSION_LIFETIME'] = __import__('datetime').timedelta(days=7)
+app.config['PERMANENT_SESSION_LIFETIME'] = __import__('datetime').timedelta(days=30)  # 30 days
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True  # Refresh session timeout on each request
 
 # CORS: Restrict origins in production and enable credentials
 _allowed_origins = os.getenv("CORS_ORIGINS", "*").split(",")
