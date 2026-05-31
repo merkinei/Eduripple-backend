@@ -2625,7 +2625,6 @@ def chat_openrouter(prompt, model="mistralai/mistral-7b-instruct"):
         return {"ok": False, "error": "Unexpected AI service error"}
 
 @app.route("/api/cbc", methods=["POST"])
-@login_required_json
 @limiter.limit("30 per hour")  # Prevent resource exhaustion
 def cbc_assistant():
     try:
